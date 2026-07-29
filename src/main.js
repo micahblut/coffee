@@ -3,6 +3,7 @@ import { renderRoasters } from "./views/roasters.js";
 import { renderBags } from "./views/bags.js";
 import { renderGrinders } from "./views/grinders.js";
 import { renderBrews } from "./views/brews.js";
+import { renderData } from "./views/data.js";
 
 /**
  * @typedef {(container: HTMLElement) => void | Promise<void>} ViewRender
@@ -16,6 +17,7 @@ const VIEWS = {
   bags: { label: "Bags", render: renderBags },
   grinders: { label: "Grinders", render: renderGrinders },
   brews: { label: "Brews", render: renderBrews },
+  data: { label: "Data", render: renderData },
 };
 
 async function main() {

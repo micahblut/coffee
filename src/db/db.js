@@ -174,6 +174,104 @@ export async function countBrewsForBag(bagId) {
   return db.brews.where("bagId").equals(bagId).count();
 }
 
+const EXPORT_VERSION = 1;
+
+/**
+ * @typedef {Object} ExportedData
+ * @property {number} exportVersion
+ * @property {string} exportedAt
+ * @property {Settings[]} settings
+ * @property {Grinder[]} grinders
+ * @property {Roaster[]} roasters
+ * @property {Bag[]} bags
+ * @property {Brew[]} brews
+ */
+
+/**
+ * @returns {Promise<ExportedData>}
+ */
+export async function exportAllData() {
+  const [settings, grinders, roasters, bags, brews] = await Promise.all([
+    db.settings.toArray(),
+    db.grinders.toArray(),
+    db.roasters.toArray(),
+    db.bags.toArray(),
+    db.brews.toArray(),
+  ]);
+
+  return {
+    exportVersion: EXPORT_VERSION,
+    exportedAt: new Date().toISOString(),
+    settings,
+    grinders,
+    roasters,
+    bags,
+    brews,
+  };
+}
+
+/**
+ * @template T
+ * @param {T[]} rows
+ * @param {(keyof T)[]} dateFields
+ * @returns {T[]}
+ */
+function reviveDates(rows, dateFields) {
+  return rows.map((row) => {
+    const revived = { ...row };
+    for (const field of dateFields) {
+      if (revived[field] != null) {
+        revived[field] = /** @type {any} */ (new Date(/** @type {any} */ (revived[field])));
+      }
+    }
+    return revived;
+  });
+}
+
+/**
+ * Replaces all local data with the contents of a previously exported file.
+ * @param {unknown} data
+ */
+export async function importAllData(data) {
+  const parsed = /** @type {Partial<ExportedData> | null} */ (
+    typeof data === "object" ? data : null
+  );
+  if (!parsed || parsed.exportVersion !== EXPORT_VERSION) {
+    throw new Error("This file isn't a caffe export I recognize.");
+  }
+
+  const roasters = parsed.roasters ?? [];
+  const bags = reviveDates(parsed.bags ?? [], ["roastDate", "createdAt"]);
+  const grinders = reviveDates(parsed.grinders ?? [], ["lastCleanedDate"]);
+  const brews = reviveDates(parsed.brews ?? [], ["brewDate", "createdAt"]);
+  const settings = parsed.settings ?? [];
+
+  await db.transaction(
+    "rw",
+    db.roasters,
+    db.bags,
+    db.grinders,
+    db.brews,
+    db.settings,
+    async () => {
+      await Promise.all([
+        db.roasters.clear(),
+        db.bags.clear(),
+        db.grinders.clear(),
+        db.brews.clear(),
+        db.settings.clear(),
+      ]);
+      await Promise.all([
+        db.roasters.bulkAdd(roasters),
+        db.bags.bulkAdd(bags),
+        db.grinders.bulkAdd(grinders),
+        db.brews.bulkAdd(brews),
+        db.settings.bulkAdd(settings),
+      ]);
+    },
+  );
+}
+
 /**
  * Deletes a grinder. If it was the default, reassigns the default to another
  * remaining grinder (or clears it, if none are left) so settings never point

@@ -29,3 +29,7 @@ form label {
 #back-bar:not(:empty) {
   margin-bottom: 1rem;
 }
+
+section {
+  margin-bottom: 1.5rem;
+}
