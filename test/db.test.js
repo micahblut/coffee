@@ -14,9 +14,13 @@ import {
   getBrewsForBag,
   countBrewsForBag,
   getBrewDatesInMonth,
+  markGrinderCleaned,
+  getGrinderCleaningStatus,
   exportAllData,
   importAllData,
 } from "../src/db/db.js";
+
+const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 
 beforeEach(async () => {
   await Promise.all([
@@ -166,6 +170,144 @@ test("getBrewDatesInMonth returns the set of days with a logged brew, excluding 
 
   const days = await getBrewDatesInMonth(2026, 5);
   assert.deepEqual([...days].sort((a, b) => a - b), [3, 15]);
+});
+
+test("getGrinderCleaningStatus returns null when no interval is configured", async () => {
+  const grinder = {
+    id: newId(),
+    name: "G",
+    lastCleanedDate: new Date(2020, 0, 1),
+  };
+  await db.grinders.add(grinder);
+
+  assert.equal(await getGrinderCleaningStatus(grinder.id), null);
+});
+
+test("getGrinderCleaningStatus returns null when lastCleanedDate is unset, even with an interval configured", async () => {
+  const grinder = { id: newId(), name: "G", cleaningIntervalGrinds: 100 };
+  await db.grinders.add(grinder);
+
+  assert.equal(await getGrinderCleaningStatus(grinder.id), null);
+});
+
+test("getGrinderCleaningStatus reports due-soon by grind count once past the warn threshold", async () => {
+  const roaster = await addRoaster();
+  const bag = await addBag(roaster.id);
+  const grinder = {
+    id: newId(),
+    name: "G",
+    lastCleanedDate: new Date(2026, 0, 1),
+    cleaningIntervalGrinds: 10,
+  };
+  await db.grinders.add(grinder);
+  for (let i = 0; i < 9; i++) {
+    await addBrew(bag.id, grinder.id, { brewDate: new Date(2026, 0, 2 + i) });
+  }
+
+  const status = await getGrinderCleaningStatus(grinder.id);
+  assert.deepEqual(status, { level: "due-soon", metric: "grinds", amount: 1 });
+});
+
+test("getGrinderCleaningStatus reports overdue by grind count past the limit", async () => {
+  const roaster = await addRoaster();
+  const bag = await addBag(roaster.id);
+  const grinder = {
+    id: newId(),
+    name: "G",
+    lastCleanedDate: new Date(2026, 0, 1),
+    cleaningIntervalGrinds: 10,
+  };
+  await db.grinders.add(grinder);
+  for (let i = 0; i < 13; i++) {
+    await addBrew(bag.id, grinder.id, { brewDate: new Date(2026, 0, 2 + i) });
+  }
+
+  const status = await getGrinderCleaningStatus(grinder.id);
+  assert.deepEqual(status, { level: "overdue", metric: "grinds", amount: 3 });
+});
+
+test("getGrinderCleaningStatus ignores brews logged before the last cleaning", async () => {
+  const roaster = await addRoaster();
+  const bag = await addBag(roaster.id);
+  const grinder = {
+    id: newId(),
+    name: "G",
+    lastCleanedDate: new Date(2026, 0, 10),
+    cleaningIntervalGrinds: 5,
+  };
+  await db.grinders.add(grinder);
+  for (let i = 0; i < 20; i++) {
+    await addBrew(bag.id, grinder.id, { brewDate: new Date(2026, 0, 1) });
+  }
+
+  assert.equal(await getGrinderCleaningStatus(grinder.id), null);
+});
+
+test("getGrinderCleaningStatus stays quiet when neither interval is close", async () => {
+  const roaster = await addRoaster();
+  const bag = await addBag(roaster.id);
+  const grinder = {
+    id: newId(),
+    name: "G",
+    lastCleanedDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+    cleaningIntervalGrinds: 100,
+    cleaningIntervalWeeks: 10,
+  };
+  await db.grinders.add(grinder);
+  await addBrew(bag.id, grinder.id, { brewDate: new Date() });
+
+  assert.equal(await getGrinderCleaningStatus(grinder.id), null);
+});
+
+test("getGrinderCleaningStatus lets the weeks backstop take over for a lightly-used grinder", async () => {
+  const roaster = await addRoaster();
+  const bag = await addBag(roaster.id);
+  const grinder = {
+    id: newId(),
+    name: "G",
+    lastCleanedDate: new Date(Date.now() - 3.9 * MS_PER_WEEK),
+    cleaningIntervalGrinds: 1000, // barely dented by one brew
+    cleaningIntervalWeeks: 4,
+  };
+  await db.grinders.add(grinder);
+  await addBrew(bag.id, grinder.id, { brewDate: new Date() });
+
+  const status = await getGrinderCleaningStatus(grinder.id);
+  assert.equal(status?.level, "due-soon");
+  assert.equal(status?.metric, "weeks");
+});
+
+test("getGrinderCleaningStatus works with only a weeks interval configured", async () => {
+  const grinder = {
+    id: newId(),
+    name: "G",
+    lastCleanedDate: new Date(Date.now() - 6 * MS_PER_WEEK),
+    cleaningIntervalWeeks: 4,
+  };
+  await db.grinders.add(grinder);
+
+  const status = await getGrinderCleaningStatus(grinder.id);
+  assert.equal(status?.level, "overdue");
+  assert.equal(status?.metric, "weeks");
+  assert.equal(status?.amount, 2);
+});
+
+test("markGrinderCleaned resets lastCleanedDate to now", async () => {
+  const grinder = {
+    id: newId(),
+    name: "G",
+    lastCleanedDate: new Date(2020, 0, 1),
+  };
+  await db.grinders.add(grinder);
+
+  const before = Date.now();
+  await markGrinderCleaned(grinder.id);
+  const after = Date.now();
+
+  const updated = await db.grinders.get(grinder.id);
+  assert.ok(updated?.lastCleanedDate);
+  const time = /** @type {Date} */ (updated?.lastCleanedDate).getTime();
+  assert.ok(time >= before && time <= after);
 });
 
 test("deleteGrinder reassigns the default to another grinder when the default is deleted", async () => {

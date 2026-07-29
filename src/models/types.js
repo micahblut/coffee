@@ -32,6 +32,10 @@
  * @property {string} id
  * @property {string} name
  * @property {Date} [lastCleanedDate]
+ * @property {number} [cleaningIntervalGrinds] remind to clean after this
+ *   many brews since lastCleanedDate
+ * @property {number} [cleaningIntervalWeeks] remind to clean after this
+ *   many weeks since lastCleanedDate, as a backstop for lightly-used grinders
  */
 
 /**

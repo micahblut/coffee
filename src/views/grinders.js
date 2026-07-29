@@ -4,8 +4,20 @@ import {
   getSettings,
   setDefaultGrinderId,
   deleteGrinder,
+  markGrinderCleaned,
+  getGrinderCleaningStatus,
 } from "../db/db.js";
 import { parseDateInputValue, dateToInputValue } from "../utils/dates.js";
+
+/**
+ * @param {import("../db/db.js").CleaningStatus} status
+ * @returns {string}
+ */
+export function formatCleaningStatus(status) {
+  return status.level === "overdue"
+    ? `${status.amount} ${status.metric} overdue for a clean`
+    : `Cleaning due in ${status.amount} ${status.metric}`;
+}
 
 /**
  * @param {HTMLElement} container
@@ -23,6 +35,15 @@ export async function renderGrinders(container, nav) {
         <label for="grinder-last-cleaned">Last cleaned</label>
         <input id="grinder-last-cleaned" name="lastCleanedDate" type="date" autocomplete="off" />
       </div>
+      <div>
+        <label for="grinder-interval-grinds">Remind me to clean every</label>
+        <input id="grinder-interval-grinds" name="cleaningIntervalGrinds" type="number" min="1" autocomplete="off" placeholder="grinds" />
+      </div>
+      <div>
+        <label for="grinder-interval-weeks">...or every</label>
+        <input id="grinder-interval-weeks" name="cleaningIntervalWeeks" type="number" min="1" autocomplete="off" placeholder="weeks" />
+        <span>weeks, whichever comes first</span>
+      </div>
       <button type="submit" id="grinder-submit">Add grinder</button>
       <button type="button" id="grinder-cancel" hidden>Cancel</button>
     </form>
@@ -37,6 +58,12 @@ export async function renderGrinders(container, nav) {
   );
   const lastCleanedInput = /** @type {HTMLInputElement} */ (
     container.querySelector("#grinder-last-cleaned")
+  );
+  const intervalGrindsInput = /** @type {HTMLInputElement} */ (
+    container.querySelector("#grinder-interval-grinds")
+  );
+  const intervalWeeksInput = /** @type {HTMLInputElement} */ (
+    container.querySelector("#grinder-interval-weeks")
   );
   const submitButton = /** @type {HTMLButtonElement} */ (
     container.querySelector("#grinder-submit")
@@ -66,12 +93,32 @@ export async function renderGrinders(container, nav) {
     const data = new FormData(form);
     const name = String(data.get("name") ?? "").trim();
     const lastCleanedDate = String(data.get("lastCleanedDate") ?? "").trim();
+    const cleaningIntervalGrinds = String(
+      data.get("cleaningIntervalGrinds") ?? "",
+    ).trim();
+    const cleaningIntervalWeeks = String(
+      data.get("cleaningIntervalWeeks") ?? "",
+    ).trim();
     if (!name) return;
+
+    const existing = editingId ? await db.grinders.get(editingId) : undefined;
+    const hasInterval = cleaningIntervalGrinds || cleaningIntervalWeeks;
 
     const fields = {
       name,
+      // If a cleaning interval is being set up for the first time with no
+      // baseline date, start the counter now rather than leaving it unset
+      // (which would make the reminder unable to compute anything).
       lastCleanedDate: lastCleanedDate
         ? parseDateInputValue(lastCleanedDate)
+        : hasInterval && !existing?.lastCleanedDate
+          ? new Date()
+          : existing?.lastCleanedDate,
+      cleaningIntervalGrinds: cleaningIntervalGrinds
+        ? Number(cleaningIntervalGrinds)
+        : undefined,
+      cleaningIntervalWeeks: cleaningIntervalWeeks
+        ? Number(cleaningIntervalWeeks)
         : undefined,
     };
 
@@ -102,6 +149,14 @@ export async function renderGrinders(container, nav) {
       lastCleanedInput.value = grinder.lastCleanedDate
         ? dateToInputValue(grinder.lastCleanedDate)
         : "";
+      intervalGrindsInput.value =
+        grinder.cleaningIntervalGrinds != null
+          ? String(grinder.cleaningIntervalGrinds)
+          : "";
+      intervalWeeksInput.value =
+        grinder.cleaningIntervalWeeks != null
+          ? String(grinder.cleaningIntervalWeeks)
+          : "";
       submitButton.textContent = "Save grinder";
       cancelButton.hidden = false;
       return;
@@ -109,6 +164,12 @@ export async function renderGrinders(container, nav) {
 
     if (target.dataset.makeDefaultId) {
       await setDefaultGrinderId(target.dataset.makeDefaultId);
+      await renderList();
+      return;
+    }
+
+    if (target.dataset.markCleanedId) {
+      await markGrinderCleaned(target.dataset.markCleanedId);
       await renderList();
       return;
     }
@@ -143,6 +204,13 @@ export async function renderGrinders(container, nav) {
         );
       }
 
+      const status = await getGrinderCleaningStatus(grinder.id);
+      if (status) {
+        const statusEl = document.createElement("div");
+        statusEl.textContent = formatCleaningStatus(status);
+        item.append(statusEl);
+      }
+
       item.append(" — ");
       if (grinder.id === defaultGrinderId) {
         item.append("default");
@@ -153,6 +221,13 @@ export async function renderGrinders(container, nav) {
         defaultButton.dataset.makeDefaultId = grinder.id;
         item.append(defaultButton);
       }
+
+      item.append(" — ");
+      const markCleanedButton = document.createElement("button");
+      markCleanedButton.type = "button";
+      markCleanedButton.textContent = "Mark cleaned";
+      markCleanedButton.dataset.markCleanedId = grinder.id;
+      item.append(markCleanedButton);
 
       item.append(" — ");
       const editButton = document.createElement("button");

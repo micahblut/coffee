@@ -305,3 +305,79 @@ export async function deleteGrinder(grinderId) {
     await db.settings.put({ id: SETTINGS_ID, defaultGrinderId: nextDefault?.id });
   });
 }
+
+/**
+ * @param {string} grinderId
+ */
+export async function markGrinderCleaned(grinderId) {
+  await db.grinders.update(grinderId, { lastCleanedDate: new Date() });
+}
+
+const CLEANING_DUE_SOON_RATIO = 0.8;
+const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * @typedef {Object} CleaningStatus
+ * @property {"due-soon" | "overdue"} level
+ * @property {"grinds" | "weeks"} metric
+ * @property {number} amount Non-negative — remaining (due-soon) or overage (overdue).
+ */
+
+/**
+ * Checks whether a grinder is due (or overdue) for cleaning, based on
+ * whichever configured interval — grind count or elapsed weeks — is
+ * proportionally closer to its limit. This mirrors a "whichever comes
+ * first" maintenance schedule (like a car's oil-change interval): grind
+ * count is the primary signal, elapsed time is a backstop for grinders
+ * that see light use but still accumulate residue over time.
+ * @param {string} grinderId
+ * @returns {Promise<CleaningStatus | null>} null if no interval is
+ *   configured, lastCleanedDate is unset, or it isn't due soon yet.
+ */
+export async function getGrinderCleaningStatus(grinderId) {
+  const grinder = await db.grinders.get(grinderId);
+  if (!grinder?.lastCleanedDate) return null;
+  if (
+    grinder.cleaningIntervalGrinds == null &&
+    grinder.cleaningIntervalWeeks == null
+  ) {
+    return null;
+  }
+
+  const lastCleanedDate = grinder.lastCleanedDate;
+  const grindsSinceClean = await db.brews
+    .where("grinderId")
+    .equals(grinderId)
+    .and((brew) => brew.brewDate >= lastCleanedDate)
+    .count();
+  const weeksSinceClean =
+    (Date.now() - lastCleanedDate.getTime()) / MS_PER_WEEK;
+
+  const grindsRatio =
+    grinder.cleaningIntervalGrinds != null
+      ? grindsSinceClean / grinder.cleaningIntervalGrinds
+      : -Infinity;
+  const weeksRatio =
+    grinder.cleaningIntervalWeeks != null
+      ? weeksSinceClean / grinder.cleaningIntervalWeeks
+      : -Infinity;
+
+  if (Math.max(grindsRatio, weeksRatio) < CLEANING_DUE_SOON_RATIO) return null;
+
+  if (grindsRatio >= weeksRatio) {
+    // grindsRatio can only win a comparison against a finite weeksRatio (or
+    // -Infinity) by itself being finite, which means cleaningIntervalGrinds
+    // must be set — the ratio computation above already proved this.
+    const interval = /** @type {number} */ (grinder.cleaningIntervalGrinds);
+    const remaining = interval - grindsSinceClean;
+    return remaining > 0
+      ? { level: "due-soon", metric: "grinds", amount: remaining }
+      : { level: "overdue", metric: "grinds", amount: -remaining };
+  }
+
+  const weeksInterval = /** @type {number} */ (grinder.cleaningIntervalWeeks);
+  const remainingWeeks = weeksInterval - weeksSinceClean;
+  return remainingWeeks > 0
+    ? { level: "due-soon", metric: "weeks", amount: Math.ceil(remainingWeeks) }
+    : { level: "overdue", metric: "weeks", amount: Math.round(-remainingWeeks) };
+}

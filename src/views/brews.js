@@ -1,10 +1,17 @@
-import { db, newId, getSettings, getRecentBags } from "../db/db.js";
+import {
+  db,
+  newId,
+  getSettings,
+  getRecentBags,
+  getGrinderCleaningStatus,
+} from "../db/db.js";
 import {
   parseDateInputValue,
   dateToInputValue,
   todayDateInputValue,
 } from "../utils/dates.js";
 import { renderBagForm } from "./bags.js";
+import { formatCleaningStatus } from "./grinders.js";
 
 const RATINGS = [1, 2, 3, 4, 5];
 
@@ -78,6 +85,7 @@ export async function renderBrewForm(container, nav, options = {}) {
       <div>
         <label for="brew-grinder">Grinder</label>
         <select id="brew-grinder" name="grinderId" required></select>
+        <div id="grinder-cleaning-status"></div>
       </div>
       <div>
         <label for="brew-date">Brew date</label>
@@ -185,6 +193,20 @@ export async function renderBrewForm(container, nav, options = {}) {
     grinderSelect.append(option);
   }
   grinderSelect.value = existing?.grinderId ?? defaultGrinderId ?? "";
+
+  const grinderCleaningStatusEl = /** @type {HTMLElement} */ (
+    container.querySelector("#grinder-cleaning-status")
+  );
+  async function renderGrinderCleaningStatus() {
+    const status = grinderSelect.value
+      ? await getGrinderCleaningStatus(grinderSelect.value)
+      : null;
+    grinderCleaningStatusEl.textContent = status
+      ? formatCleaningStatus(status)
+      : "";
+  }
+  grinderSelect.addEventListener("change", renderGrinderCleaningStatus);
+  await renderGrinderCleaningStatus();
 
   const dateInput = /** @type {HTMLInputElement} */ (
     container.querySelector("#brew-date")
