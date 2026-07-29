@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/dev-server.js",
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "test": "node --test"
   },
   "devDependencies": {
+    "@types/node": "^26.1.2",
+    "fake-indexeddb": "^6.2.5",
     "typescript": "~6.0.2"
   }
 }
