@@ -16,6 +16,7 @@
 /**
  * @typedef {Object} Bag
  * @property {string} id
+ * @property {string} name
  * @property {string} roasterId
  * @property {Date} roastDate
  * @property {BagType} type
@@ -29,6 +30,13 @@
  * @property {string} id
  * @property {string} name
  * @property {Date} [lastCleanedDate]
+ */
+
+/**
+ * Singleton row (fixed id "settings") holding app-wide preferences.
+ * @typedef {Object} Settings
+ * @property {"settings"} id
+ * @property {string} [defaultGrinderId]
  */
 
 /**
