@@ -174,6 +174,22 @@ export async function countBrewsForBag(bagId) {
   return db.brews.where("bagId").equals(bagId).count();
 }
 
+/**
+ * Days (1-31) within the given month that have at least one logged brew.
+ * @param {number} year
+ * @param {number} monthIndex 0-based, matching Date's convention
+ * @returns {Promise<Set<number>>}
+ */
+export async function getBrewDatesInMonth(year, monthIndex) {
+  const start = new Date(year, monthIndex, 1);
+  const end = new Date(year, monthIndex + 1, 1);
+  const brews = await db.brews
+    .where("brewDate")
+    .between(start, end, true, false)
+    .toArray();
+  return new Set(brews.map((brew) => brew.brewDate.getDate()));
+}
+
 const EXPORT_VERSION = 1;
 
 /**

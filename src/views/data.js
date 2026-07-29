@@ -19,9 +19,9 @@ function downloadJson(filename, data) {
 
 /**
  * @param {HTMLElement} container
- * @param {import("../main.js").Navigate} navigate
+ * @param {import("../main.js").Nav} nav
  */
-export async function renderData(container, navigate) {
+export async function renderData(container, nav) {
   container.innerHTML = `
     <h1>Data</h1>
     <section>

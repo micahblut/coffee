@@ -5,24 +5,31 @@ const PAGE_SIZE = 10;
 
 /**
  * @param {HTMLElement} container
- * @param {import("../main.js").Navigate} navigate
+ * @param {import("../main.js").Nav} nav
+ * @param {{
+ *   roasterId?: string,
+ *   isModal?: boolean,
+ *   onSaved?: (roaster: import("../models/types.js").Roaster) => void | Promise<void>,
+ * }} [options]
  */
-export async function renderRoasters(container, navigate) {
+export async function renderRoasterForm(container, nav, options = {}) {
+  const { roasterId, isModal, onSaved } = options;
+  const existing = roasterId ? await db.roasters.get(roasterId) : undefined;
+
   container.innerHTML = `
-    <h1>Roasters</h1>
+    <h1>${roasterId ? "Edit roaster" : "Add roaster"}</h1>
     <form id="roaster-form">
       <div>
         <label for="roaster-name">Name</label>
-        <input id="roaster-name" name="name" type="text" required />
+        <input id="roaster-name" name="name" type="text" autocomplete="off" required />
       </div>
       <div>
         <label for="roaster-website">Website</label>
-        <input id="roaster-website" name="website" type="url" placeholder="https://" />
+        <input id="roaster-website" name="website" type="url" placeholder="https://" autocomplete="off" />
       </div>
-      <button type="submit" id="roaster-submit">Add roaster</button>
-      <button type="button" id="roaster-cancel" hidden>Cancel</button>
+      <button type="submit">${roasterId ? "Save roaster" : "Add roaster"}</button>
+      <button type="button" id="roaster-form-cancel">Cancel</button>
     </form>
-    <ul id="roaster-list"></ul>
   `;
 
   const form = /** @type {HTMLFormElement} */ (
@@ -34,27 +41,16 @@ export async function renderRoasters(container, navigate) {
   const websiteInput = /** @type {HTMLInputElement} */ (
     container.querySelector("#roaster-website")
   );
-  const submitButton = /** @type {HTMLButtonElement} */ (
-    container.querySelector("#roaster-submit")
-  );
+  nameInput.value = existing?.name ?? "";
+  websiteInput.value = existing?.website ?? "";
+
   const cancelButton = /** @type {HTMLButtonElement} */ (
-    container.querySelector("#roaster-cancel")
+    container.querySelector("#roaster-form-cancel")
   );
-  const list = /** @type {HTMLUListElement} */ (
-    container.querySelector("#roaster-list")
-  );
-
-  /** @type {string | null} */
-  let editingId = null;
-
-  function resetToCreateMode() {
-    editingId = null;
-    form.reset();
-    submitButton.textContent = "Add roaster";
-    cancelButton.hidden = true;
-  }
-
-  cancelButton.addEventListener("click", resetToCreateMode);
+  cancelButton.addEventListener("click", () => {
+    if (isModal) nav.hideModal();
+    else nav.goBack();
+  });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -64,44 +60,70 @@ export async function renderRoasters(container, navigate) {
     const website = String(data.get("website") ?? "").trim();
     if (!name) return;
 
-    if (editingId) {
-      await db.roasters.update(editingId, { name, website: website || undefined });
+    const fields = { name, website: website || undefined };
+
+    /** @type {import("../models/types.js").Roaster} */
+    let saved;
+    if (roasterId) {
+      await db.roasters.update(roasterId, fields);
+      saved = { id: roasterId, ...fields };
     } else {
-      await db.roasters.add({ id: newId(), name, website: website || undefined });
+      saved = { id: newId(), ...fields };
+      await db.roasters.add(saved);
     }
 
-    resetToCreateMode();
-    await renderList();
+    if (onSaved) {
+      await onSaved(saved);
+    } else if (isModal) {
+      nav.hideModal();
+    } else {
+      await nav.goBack();
+    }
   });
+}
+
+/**
+ * @param {HTMLElement} container
+ * @param {import("../main.js").Nav} nav
+ */
+export async function renderRoastersList(container, nav) {
+  container.innerHTML = `
+    <h1>Roasters</h1>
+    <button type="button" id="add-roaster">Add roaster</button>
+    <ul id="roaster-list"></ul>
+  `;
+
+  const addButton = /** @type {HTMLButtonElement} */ (
+    container.querySelector("#add-roaster")
+  );
+  addButton.addEventListener("click", () => {
+    nav.navigate((c) => renderRoasterForm(c, nav));
+  });
+
+  const list = /** @type {HTMLUListElement} */ (
+    container.querySelector("#roaster-list")
+  );
 
   list.addEventListener("click", async (event) => {
     const target = /** @type {HTMLElement} */ (event.target);
 
-    if (target.dataset.viewId) {
-      const roaster = await db.roasters.get(target.dataset.viewId);
-      if (!roaster) return;
-      await navigate((c) => renderRoasterDetail(c, navigate, roaster.id));
+    const viewId = target.dataset.viewId;
+    if (viewId) {
+      await nav.navigate((c) => renderRoasterDetail(c, nav, viewId));
       return;
     }
 
-    if (target.dataset.editId) {
-      const roaster = await db.roasters.get(target.dataset.editId);
-      if (!roaster) return;
-
-      editingId = roaster.id;
-      nameInput.value = roaster.name;
-      websiteInput.value = roaster.website ?? "";
-      submitButton.textContent = "Save roaster";
-      cancelButton.hidden = false;
+    const editId = target.dataset.editId;
+    if (editId) {
+      await nav.navigate((c) => renderRoasterForm(c, nav, { roasterId: editId }));
       return;
     }
 
-    const roasterId = target.dataset.deleteId;
-    if (!roasterId) return;
+    const deleteId = target.dataset.deleteId;
+    if (!deleteId) return;
 
     if (!confirm("Delete this roaster?")) return;
-    await db.roasters.delete(roasterId);
-    if (editingId === roasterId) resetToCreateMode();
+    await db.roasters.delete(deleteId);
     await renderList();
   });
 
@@ -153,10 +175,10 @@ export async function renderRoasters(container, navigate) {
 
 /**
  * @param {HTMLElement} container
- * @param {import("../main.js").Navigate} navigate
+ * @param {import("../main.js").Nav} nav
  * @param {string} roasterId
  */
-export async function renderRoasterDetail(container, navigate, roasterId) {
+export async function renderRoasterDetail(container, nav, roasterId) {
   const roaster = await db.roasters.get(roasterId);
   if (!roaster) {
     container.innerHTML = "";
@@ -223,7 +245,7 @@ export async function renderRoasterDetail(container, navigate, roasterId) {
       nameButton.type = "button";
       nameButton.textContent = bag.name;
       nameButton.addEventListener("click", () => {
-        navigate((c) => renderBagDetail(c, navigate, bag.id));
+        nav.navigate((c) => renderBagDetail(c, nav, bag.id));
       });
       item.append(nameButton);
 

@@ -13,6 +13,7 @@ import {
   countBagsForRoaster,
   getBrewsForBag,
   countBrewsForBag,
+  getBrewDatesInMonth,
   exportAllData,
   importAllData,
 } from "../src/db/db.js";
@@ -149,6 +150,22 @@ test("getBrewsForBag paginates via offset/limit in brewDate-descending order", a
   const page = await getBrewsForBag(bag.id, { offset: 1, limit: 1 });
   assert.equal(page.length, 1);
   assert.equal(page[0].brewDate.getDate(), 2);
+});
+
+test("getBrewDatesInMonth returns the set of days with a logged brew, excluding other months", async () => {
+  const roaster = await addRoaster();
+  const bag = await addBag(roaster.id);
+  const grinder = { id: newId(), name: "Grinder" };
+  await db.grinders.add(grinder);
+
+  await addBrew(bag.id, grinder.id, { brewDate: new Date(2026, 5, 3) });
+  await addBrew(bag.id, grinder.id, { brewDate: new Date(2026, 5, 3) }); // same day, twice
+  await addBrew(bag.id, grinder.id, { brewDate: new Date(2026, 5, 15) });
+  await addBrew(bag.id, grinder.id, { brewDate: new Date(2026, 6, 1) }); // next month
+  await addBrew(bag.id, grinder.id, { brewDate: new Date(2026, 4, 30) }); // previous month
+
+  const days = await getBrewDatesInMonth(2026, 5);
+  assert.deepEqual([...days].sort((a, b) => a - b), [3, 15]);
 });
 
 test("deleteGrinder reassigns the default to another grinder when the default is deleted", async () => {

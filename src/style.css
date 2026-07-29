@@ -33,3 +33,52 @@ form label {
 section {
   margin-bottom: 1.5rem;
 }
+
+/* Baseline touch target size — this is an interaction concern (tappable on
+   mobile), not a visual design pass. */
+button {
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+}
+
+#calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+#calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.25rem;
+  text-align: center;
+}
+
+.calendar-weekday {
+  font-weight: bold;
+  font-size: 0.75rem;
+}
+
+.calendar-day {
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calendar-day.is-today {
+  outline: 2px solid currentColor;
+}
+
+.calendar-day.has-brew {
+  font-weight: bold;
+  text-decoration: underline;
+}
+
+.modal {
+  border: 1px solid #888;
+  background: #f7f7f7;
+  padding: 1rem;
+  margin: 1rem 0;
+}

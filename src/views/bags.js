@@ -5,6 +5,7 @@ import {
   todayDateInputValue,
 } from "../utils/dates.js";
 import { formatBrewDetails } from "./brews.js";
+import { renderRoasterForm } from "./roasters.js";
 
 const BAG_TYPES = ["Espresso", "Filter"];
 const ROAST_PROCESSES = ["Washed", "Natural", "Honey", "Anaerobic", "Other"];
@@ -24,33 +25,35 @@ export function formatBagDetails(bag) {
 
 /**
  * @param {HTMLElement} container
- * @param {import("../main.js").Navigate} navigate
+ * @param {import("../main.js").Nav} nav
+ * @param {{
+ *   bagId?: string,
+ *   isModal?: boolean,
+ *   onSaved?: (bag: import("../models/types.js").Bag) => void | Promise<void>,
+ * }} [options]
  */
-export async function renderBags(container, navigate) {
-  const roasters = await db.roasters.orderBy("name").toArray();
-
-  if (roasters.length === 0) {
-    container.innerHTML = "";
-    const message = document.createElement("p");
-    message.textContent = "Add a roaster first before logging a bag.";
-    container.append(message);
-    return;
-  }
+export async function renderBagForm(container, nav, options = {}) {
+  const { bagId, isModal, onSaved } = options;
+  const [roasters, existing] = await Promise.all([
+    db.roasters.orderBy("name").toArray(),
+    bagId ? db.bags.get(bagId) : undefined,
+  ]);
 
   container.innerHTML = `
-    <h1>Bags</h1>
+    <h1>${bagId ? "Edit bag" : "Add bag"}</h1>
     <form id="bag-form">
       <div>
         <label for="bag-name">Name</label>
-        <input id="bag-name" name="name" type="text" placeholder="e.g. Sunrise Espresso Blend" required />
+        <input id="bag-name" name="name" type="text" placeholder="e.g. Sunrise Espresso Blend" autocomplete="off" required />
       </div>
       <div>
         <label for="bag-roaster">Roaster</label>
         <select id="bag-roaster" name="roasterId" required></select>
+        <button type="button" id="add-roaster-inline">+ Add new roaster</button>
       </div>
       <div>
         <label for="bag-roast-date">Roast date</label>
-        <input id="bag-roast-date" name="roastDate" type="date" max="${todayDateInputValue()}" required />
+        <input id="bag-roast-date" name="roastDate" type="date" max="${todayDateInputValue()}" autocomplete="off" required />
       </div>
       <div>
         <label for="bag-type">Type</label>
@@ -60,7 +63,7 @@ export async function renderBags(container, navigate) {
       </div>
       <div>
         <label for="bag-origin">Origin</label>
-        <input id="bag-origin" name="origin" type="text" placeholder="e.g. Ethiopia, Yirgacheffe" />
+        <input id="bag-origin" name="origin" type="text" placeholder="e.g. Ethiopia, Yirgacheffe" autocomplete="off" />
       </div>
       <div>
         <label for="bag-process">Process</label>
@@ -71,12 +74,11 @@ export async function renderBags(container, navigate) {
       </div>
       <div>
         <label for="bag-weight">Weight (g)</label>
-        <input id="bag-weight" name="weightGrams" type="number" min="0" />
+        <input id="bag-weight" name="weightGrams" type="number" min="0" autocomplete="off" />
       </div>
-      <button type="submit" id="bag-submit">Add bag</button>
-      <button type="button" id="bag-cancel" hidden>Cancel</button>
+      <button type="submit">${bagId ? "Save bag" : "Add bag"}</button>
+      <button type="button" id="bag-form-cancel">Cancel</button>
     </form>
-    <ul id="bag-list"></ul>
   `;
 
   const roasterSelect = /** @type {HTMLSelectElement} */ (
@@ -110,27 +112,42 @@ export async function renderBags(container, navigate) {
   const weightInput = /** @type {HTMLInputElement} */ (
     container.querySelector("#bag-weight")
   );
-  const submitButton = /** @type {HTMLButtonElement} */ (
-    container.querySelector("#bag-submit")
-  );
+
+  nameInput.value = existing?.name ?? "";
+  if (existing) roasterSelect.value = existing.roasterId;
+  roastDateInput.value = existing ? dateToInputValue(existing.roastDate) : "";
+  if (existing) typeSelect.value = existing.type;
+  originInput.value = existing?.origin ?? "";
+  if (existing?.process) processSelect.value = existing.process;
+  weightInput.value =
+    existing?.weightGrams != null ? String(existing.weightGrams) : "";
+
   const cancelButton = /** @type {HTMLButtonElement} */ (
-    container.querySelector("#bag-cancel")
+    container.querySelector("#bag-form-cancel")
   );
-  const list = /** @type {HTMLUListElement} */ (
-    container.querySelector("#bag-list")
+  cancelButton.addEventListener("click", () => {
+    if (isModal) nav.hideModal();
+    else nav.goBack();
+  });
+
+  const addRoasterButton = /** @type {HTMLButtonElement} */ (
+    container.querySelector("#add-roaster-inline")
   );
-
-  /** @type {string | null} */
-  let editingId = null;
-
-  function resetToCreateMode() {
-    editingId = null;
-    form.reset();
-    submitButton.textContent = "Add bag";
-    cancelButton.hidden = true;
-  }
-
-  cancelButton.addEventListener("click", resetToCreateMode);
+  addRoasterButton.addEventListener("click", () => {
+    nav.showModal((modalContainer) =>
+      renderRoasterForm(modalContainer, nav, {
+        isModal: true,
+        onSaved: (roaster) => {
+          const option = document.createElement("option");
+          option.value = roaster.id;
+          option.textContent = roaster.name;
+          roasterSelect.append(option);
+          roasterSelect.value = roaster.id;
+          nav.hideModal();
+        },
+      }),
+    );
+  });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -158,48 +175,70 @@ export async function renderBags(container, navigate) {
       weightGrams: weightGrams ? Number(weightGrams) : undefined,
     };
 
-    if (editingId) {
-      await db.bags.update(editingId, fields);
+    /** @type {import("../models/types.js").Bag} */
+    let saved;
+    if (bagId) {
+      await db.bags.update(bagId, fields);
+      saved = { id: bagId, createdAt: existing?.createdAt ?? new Date(), ...fields };
     } else {
-      await db.bags.add({ id: newId(), createdAt: new Date(), ...fields });
+      saved = { id: newId(), createdAt: new Date(), ...fields };
+      await db.bags.add(saved);
     }
 
-    resetToCreateMode();
-    await renderList();
+    if (onSaved) {
+      await onSaved(saved);
+    } else if (isModal) {
+      nav.hideModal();
+    } else {
+      await nav.goBack();
+    }
   });
+}
+
+/**
+ * @param {HTMLElement} container
+ * @param {import("../main.js").Nav} nav
+ */
+export async function renderBagsList(container, nav) {
+  const roasters = await db.roasters.orderBy("name").toArray();
+
+  container.innerHTML = `
+    <h1>Bags</h1>
+    <button type="button" id="add-bag">Add bag</button>
+    <ul id="bag-list"></ul>
+  `;
+
+  const addButton = /** @type {HTMLButtonElement} */ (
+    container.querySelector("#add-bag")
+  );
+  addButton.addEventListener("click", () => {
+    nav.navigate((c) => renderBagForm(c, nav));
+  });
+
+  const list = /** @type {HTMLUListElement} */ (
+    container.querySelector("#bag-list")
+  );
 
   list.addEventListener("click", async (event) => {
     const target = /** @type {HTMLElement} */ (event.target);
 
     const viewId = target.dataset.viewId;
     if (viewId) {
-      await navigate((c) => renderBagDetail(c, navigate, viewId));
+      await nav.navigate((c) => renderBagDetail(c, nav, viewId));
       return;
     }
 
-    if (target.dataset.editId) {
-      const bag = await db.bags.get(target.dataset.editId);
-      if (!bag) return;
-
-      editingId = bag.id;
-      nameInput.value = bag.name;
-      roasterSelect.value = bag.roasterId;
-      roastDateInput.value = dateToInputValue(bag.roastDate);
-      typeSelect.value = bag.type;
-      originInput.value = bag.origin ?? "";
-      processSelect.value = bag.process ?? "";
-      weightInput.value = bag.weightGrams != null ? String(bag.weightGrams) : "";
-      submitButton.textContent = "Save bag";
-      cancelButton.hidden = false;
+    const editId = target.dataset.editId;
+    if (editId) {
+      await nav.navigate((c) => renderBagForm(c, nav, { bagId: editId }));
       return;
     }
 
-    const bagId = target.dataset.deleteId;
-    if (!bagId) return;
+    const deleteId = target.dataset.deleteId;
+    if (!deleteId) return;
 
     if (!confirm("Delete this bag?")) return;
-    await db.bags.delete(bagId);
-    if (editingId === bagId) resetToCreateMode();
+    await db.bags.delete(deleteId);
     await renderList();
   });
 
@@ -242,10 +281,10 @@ export async function renderBags(container, navigate) {
 
 /**
  * @param {HTMLElement} container
- * @param {import("../main.js").Navigate} navigate
+ * @param {import("../main.js").Nav} nav
  * @param {string} bagId
  */
-export async function renderBagDetail(container, navigate, bagId) {
+export async function renderBagDetail(container, nav, bagId) {
   const bag = await db.bags.get(bagId);
   if (!bag) {
     container.innerHTML = "";

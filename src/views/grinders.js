@@ -9,19 +9,19 @@ import { parseDateInputValue, dateToInputValue } from "../utils/dates.js";
 
 /**
  * @param {HTMLElement} container
- * @param {import("../main.js").Navigate} navigate
+ * @param {import("../main.js").Nav} nav
  */
-export async function renderGrinders(container, navigate) {
+export async function renderGrinders(container, nav) {
   container.innerHTML = `
     <h1>Grinders</h1>
     <form id="grinder-form">
       <div>
         <label for="grinder-name">Name</label>
-        <input id="grinder-name" name="name" type="text" required />
+        <input id="grinder-name" name="name" type="text" autocomplete="off" required />
       </div>
       <div>
         <label for="grinder-last-cleaned">Last cleaned</label>
-        <input id="grinder-last-cleaned" name="lastCleanedDate" type="date" />
+        <input id="grinder-last-cleaned" name="lastCleanedDate" type="date" autocomplete="off" />
       </div>
       <button type="submit" id="grinder-submit">Add grinder</button>
       <button type="button" id="grinder-cancel" hidden>Cancel</button>
