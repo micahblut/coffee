@@ -19,3 +19,13 @@ form label {
   gap: 0.5rem;
   margin-bottom: 1.5rem;
 }
+
+#recent-bags {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+#back-bar:not(:empty) {
+  margin-bottom: 1rem;
+}

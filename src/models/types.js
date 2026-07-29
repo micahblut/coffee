@@ -23,6 +23,8 @@
  * @property {string} [origin]
  * @property {RoastProcess} [process]
  * @property {number} [weightGrams]
+ * @property {Date} createdAt when this bag record was added to the app —
+ *   distinct from roastDate, used to rank "recently started" bags
  */
 
 /**
@@ -52,6 +54,8 @@
  * @property {number} [waterTempCelsius]
  * @property {1 | 2 | 3 | 4 | 5} rating
  * @property {string} [notes]
+ * @property {Date} createdAt when this brew record was logged — distinct
+ *   from brewDate (which the user can backdate), used to rank bag recency
  */
 
 export {};
