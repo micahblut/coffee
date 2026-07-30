@@ -15,8 +15,6 @@ import {
 import { renderBagForm } from "./bags.js";
 import { formatCleaningStatus } from "./grinders.js";
 
-const RATINGS = [1, 2, 3, 4, 5];
-
 /**
  * @param {import("../models/types.js").Brew} brew
  * @param {Map<string, string>} grinderNames
@@ -43,24 +41,41 @@ export function formatBrewDetails(brew, grinderNames, brewerNames) {
 }
 
 /**
+ * @returns {string}
+ */
+function starRatingHtml() {
+  return [1, 2, 3, 4, 5]
+    .map(
+      (value) =>
+        `<button type="button" class="star-rating-star" data-value="${value}" aria-label="${value} star${value === 1 ? "" : "s"}">☆</button>`,
+    )
+    .join("");
+}
+
+/**
+ * The brew sheet — handles both adding a brew (triggered by the Brew button
+ * on the Home screen and the Bag View) and editing one (tapping a brew
+ * anywhere it's listed). Same layout either way: settings the user already
+ * has a default for move into a collapsed "Change defaults" section (opened
+ * automatically when editing, so nothing about the stored record is hidden),
+ * and the bag is either already known (pre-filled from the Bag View, or
+ * simply the brew being edited) or picked fresh via the Home screen's
+ * recent-bags quick list.
  * @param {HTMLElement} container
  * @param {import("../main.js").Nav} nav
  * @param {{
  *   brewId?: string,
- *   isModal?: boolean,
+ *   prefillBagId?: string,
  *   onSaved?: (brew: import("../models/types.js").Brew) => void | Promise<void>,
  * }} [options]
  */
-export async function renderBrewForm(container, nav, options = {}) {
-  const { brewId, isModal, onSaved } = options;
+export async function renderBrewSheet(container, nav, options = {}) {
+  const { brewId, prefillBagId, onSaved } = options;
   const [grinders, brewers] = await Promise.all([
     db.grinders.orderBy("name").toArray(),
     db.brewers.orderBy("name").toArray(),
   ]);
 
-  // Unlike bags/roasters, there's no inline "+ Add new grinder/brewer" escape
-  // hatch yet (users are expected to rarely have more than one or two), so
-  // this is still a hard stop rather than a modal detour.
   if (grinders.length === 0) {
     container.innerHTML = "";
     const message = document.createElement("p");
@@ -84,99 +99,221 @@ export async function renderBrewForm(container, nav, options = {}) {
     getSettings(),
     brewId ? db.brews.get(brewId) : undefined,
   ]);
-
   const roasterNames = new Map(roasters.map((r) => [r.id, r.name]));
-  const defaultGrinderId = settings?.defaultGrinderId;
-  const defaultBrewerId = settings?.defaultBrewerId;
+  const bagsById = new Map(bags.map((bag) => [bag.id, bag]));
 
-  container.innerHTML = `
-    <h1>${brewId ? "Edit brew" : "Add brew"}</h1>
-    <form id="brew-form">
+  // Editing a brew always has a known bag (the one it was already logged
+  // against); adding one from the Bag View pre-fills it. Either way, the
+  // recent-bags quick-pick only makes sense when nothing's decided yet.
+  const knownBagId = existing?.bagId ?? prefillBagId;
+  const recentBags = knownBagId ? [] : await getRecentBags(3);
+
+  const hasDefaultBrewer = settings?.defaultBrewerId != null;
+  const hasDefaultGrinder = settings?.defaultGrinderId != null;
+  const hasDefaultDose = settings?.defaultDoseGrams != null;
+  const hasDefaultYield = settings?.defaultYieldGrams != null;
+  const hasDefaultWaterTemp = settings?.defaultWaterTempCelsius != null;
+
+  /**
+   * @param {import("../models/types.js").Bag} bag
+   * @returns {string}
+   */
+  function bagLabel(bag) {
+    return `${bag.name} — ${roasterNames.get(bag.roasterId) ?? "Unknown roaster"}`;
+  }
+
+  const brewerFieldHtml = `
+    <div>
+      <label for="brew-brewer">Brewer</label>
+      <select id="brew-brewer" name="brewerId" required></select>
+      <div id="brewer-cleaning-status" class="cleaning-status"></div>
+    </div>
+  `;
+  const grinderFieldHtml = `
+    <div>
+      <label for="brew-grinder">Grinder</label>
+      <select id="brew-grinder" name="grinderId" required></select>
+      <div id="grinder-cleaning-status" class="cleaning-status"></div>
+    </div>
+  `;
+  const doseFieldHtml = `
+    <div>
+      <label for="brew-dose">Dose (g)</label>
+      <input id="brew-dose" name="doseGrams" type="number" step="any" min="0" autocomplete="off" />
+    </div>
+  `;
+  const yieldFieldHtml = `
+    <div>
+      <label for="brew-yield">Yield (g)</label>
+      <input id="brew-yield" name="yieldGrams" type="number" step="any" min="0" autocomplete="off" />
+    </div>
+  `;
+  const waterTempFieldHtml = `
+    <div>
+      <label for="brew-water-temp">Water temp (°C)</label>
+      <input id="brew-water-temp" name="waterTempCelsius" type="number" step="any" autocomplete="off" />
+    </div>
+  `;
+
+  // Date, grind size, and extraction time have no notion of a "default" —
+  // they always show. Everything else only shows here if the user hasn't
+  // already configured a default for it; otherwise it moves to the
+  // collapsed section below.
+  const mainFieldsHtml = [
+    hasDefaultBrewer ? "" : brewerFieldHtml,
+    hasDefaultGrinder ? "" : grinderFieldHtml,
+    `
+    <div>
+      <label for="brew-date">Date</label>
+      <input id="brew-date" name="brewDate" type="date" max="${todayDateInputValue()}" autocomplete="off" required />
+    </div>
+    <div>
+      <label for="brew-grind-size">Grind size</label>
+      <input id="brew-grind-size" name="grindSize" type="number" step="any" autocomplete="off" required />
+    </div>
+    `,
+    hasDefaultDose ? "" : doseFieldHtml,
+    hasDefaultYield ? "" : yieldFieldHtml,
+    `
+    <div>
+      <label for="brew-extraction-time">Extraction time (seconds)</label>
+      <input id="brew-extraction-time" name="extractionTimeSeconds" type="number" min="0" autocomplete="off" required />
+    </div>
+    `,
+    hasDefaultWaterTemp ? "" : waterTempFieldHtml,
+  ].join("");
+
+  const defaultsFieldsHtml = [
+    hasDefaultBrewer ? brewerFieldHtml : "",
+    hasDefaultGrinder ? grinderFieldHtml : "",
+    hasDefaultDose ? doseFieldHtml : "",
+    hasDefaultYield ? yieldFieldHtml : "",
+    hasDefaultWaterTemp ? waterTempFieldHtml : "",
+  ].join("");
+
+  // If the bag is already known (editing, or added from the Bag View), a
+  // confirmation line names it. Coming from Home to add a brew, nothing is
+  // pre-selected — the user picks a bag from the quick-pick list (its red
+  // outline is the only indication of what's selected) or opens the full
+  // picker below.
+  const bagFieldHtml = knownBagId
+    ? `
+    <div class="detail-name" id="brew-bag-current-name"></div>
+    <details class="form-details">
+      <summary>Change bag</summary>
       <div>
         <label for="brew-bag">Bag</label>
-        <div id="recent-bags"></div>
-        <select id="brew-bag" name="bagId" required></select>
-        <button type="button" id="add-bag-inline">+ Add new bag</button>
+        <select id="brew-bag" name="bagId"></select>
+        <button type="button" id="add-bag-inline" class="inline-text-button">+ Add new bag</button>
       </div>
+    </details>
+  `
+    : `
+    <div id="bag-quick-picks" class="bag-quick-picks"></div>
+    <details class="form-details">
+      <summary>Choose a different bag</summary>
       <div>
-        <label for="brew-brewer">Brewer</label>
-        <select id="brew-brewer" name="brewerId" required></select>
-        <div id="brewer-cleaning-status"></div>
+        <label for="brew-bag">Bag</label>
+        <select id="brew-bag" name="bagId"></select>
+        <button type="button" id="add-bag-inline" class="inline-text-button">+ Add new bag</button>
       </div>
-      <div>
-        <label for="brew-grinder">Grinder</label>
-        <select id="brew-grinder" name="grinderId" required></select>
-        <div id="grinder-cleaning-status"></div>
+    </details>
+  `;
+
+  container.innerHTML = `
+    <h1>${existing ? "Edit brew" : "Add brew"}</h1>
+    <form id="brew-form">
+      <section class="settings-section">
+        <h2>Coffee</h2>
+        <div class="settings-card">${bagFieldHtml}</div>
+      </section>
+      <section class="settings-section">
+        <h2>Brew details</h2>
+        <div class="settings-card">
+          ${mainFieldsHtml}
+          ${
+            defaultsFieldsHtml
+              ? `
+          <details class="form-details" ${existing ? "open" : ""}>
+            <summary>Change defaults</summary>
+            ${defaultsFieldsHtml}
+          </details>
+          `
+              : ""
+          }
+        </div>
+      </section>
+      <section class="settings-section">
+        <h2>Rating &amp; notes</h2>
+        <div class="settings-card">
+          <div id="brew-rating-stars" class="star-rating" role="group" aria-label="Rating"></div>
+          <input type="hidden" id="brew-rating" name="rating" />
+          <div>
+            <label for="brew-notes">Notes</label>
+            <textarea id="brew-notes" name="notes" maxlength="256" rows="5" class="brew-notes-textarea" autocomplete="off"></textarea>
+          </div>
+        </div>
+      </section>
+      <div class="sheet-actions">
+        <button type="submit" class="brew-button">Save</button>
       </div>
-      <div>
-        <label for="brew-date">Brew date</label>
-        <input id="brew-date" name="brewDate" type="date" max="${todayDateInputValue()}" autocomplete="off" required />
-      </div>
-      <div>
-        <label for="brew-grind-size">Grind size</label>
-        <input id="brew-grind-size" name="grindSize" type="number" step="any" autocomplete="off" required />
-      </div>
-      <div>
-        <label for="brew-dose">Dose (g)</label>
-        <input id="brew-dose" name="doseGrams" type="number" step="any" min="0" autocomplete="off" />
-      </div>
-      <div>
-        <label for="brew-yield">Yield (g)</label>
-        <input id="brew-yield" name="yieldGrams" type="number" step="any" min="0" autocomplete="off" />
-      </div>
-      <div>
-        <label for="brew-extraction-time">Extraction time (seconds)</label>
-        <input id="brew-extraction-time" name="extractionTimeSeconds" type="number" min="0" autocomplete="off" required />
-      </div>
-      <div>
-        <label for="brew-water-temp">Water temp (°C)</label>
-        <input id="brew-water-temp" name="waterTempCelsius" type="number" step="any" autocomplete="off" />
-      </div>
-      <div>
-        <label for="brew-rating">Rating</label>
-        <select id="brew-rating" name="rating" required>
-          <option value="" disabled selected>Select…</option>
-          ${RATINGS.map((r) => `<option value="${r}">${r}</option>`).join("")}
-        </select>
-      </div>
-      <div>
-        <label for="brew-notes">Notes</label>
-        <textarea id="brew-notes" name="notes" maxlength="256" rows="3" autocomplete="off"></textarea>
-      </div>
-      <button type="submit">${brewId ? "Save brew" : "Add brew"}</button>
-      <button type="button" id="brew-form-cancel">Cancel</button>
     </form>
   `;
 
   const bagSelect = /** @type {HTMLSelectElement} */ (
     container.querySelector("#brew-bag")
   );
+  // No option is selected by default (unless a bag was prefilled) — the
+  // placeholder keeps the native select's own value genuinely empty rather
+  // than silently defaulting to whichever bag happens to sort first.
+  const placeholderOption = document.createElement("option");
+  placeholderOption.value = "";
+  placeholderOption.disabled = true;
+  placeholderOption.selected = true;
+  placeholderOption.textContent = "Select a bag…";
+  bagSelect.append(placeholderOption);
   for (const bag of bags) {
     const option = document.createElement("option");
     option.value = bag.id;
-    option.textContent = `${bag.name} — ${roasterNames.get(bag.roasterId) ?? "Unknown roaster"} (${bag.roastDate.toLocaleDateString()})`;
+    option.textContent = `${bagLabel(bag)} (${bag.roastDate.toLocaleDateString()})`;
     bagSelect.append(option);
   }
-  if (existing) bagSelect.value = existing.bagId;
+  if (knownBagId) bagSelect.value = knownBagId;
 
-  const recentBagsContainer = /** @type {HTMLElement} */ (
-    container.querySelector("#recent-bags")
+  const bagNameEl = /** @type {HTMLElement | null} */ (
+    container.querySelector("#brew-bag-current-name")
   );
 
-  async function renderRecentBags() {
-    const recentBags = await getRecentBags(3);
-    recentBagsContainer.innerHTML = "";
+  function syncBagDisplay() {
+    const bag = bagsById.get(bagSelect.value);
+    if (bagNameEl) bagNameEl.textContent = bag ? bagLabel(bag) : "";
+    for (const chip of /** @type {HTMLButtonElement[]} */ (
+      Array.from(container.querySelectorAll(".bag-quick-pick"))
+    )) {
+      chip.classList.toggle("selected", chip.dataset.bagId === bagSelect.value);
+    }
+  }
 
+  if (!knownBagId) {
+    const quickPicksContainer = /** @type {HTMLElement} */ (
+      container.querySelector("#bag-quick-picks")
+    );
     for (const bag of recentBags) {
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = `${bag.name} — ${roasterNames.get(bag.roasterId) ?? "Unknown roaster"}`;
+      button.className = "bag-quick-pick";
+      button.dataset.bagId = bag.id;
+      button.textContent = bagLabel(bag);
       button.addEventListener("click", () => {
         bagSelect.value = bag.id;
+        syncBagDisplay();
       });
-      recentBagsContainer.append(button);
+      quickPicksContainer.append(button);
     }
   }
+
+  bagSelect.addEventListener("change", syncBagDisplay);
+  syncBagDisplay();
 
   const addBagButton = /** @type {HTMLButtonElement} */ (
     container.querySelector("#add-bag-inline")
@@ -193,11 +330,13 @@ export async function renderBrewForm(container, nav, options = {}) {
             const roaster = await db.roasters.get(bag.roasterId);
             if (roaster) roasterNames.set(roaster.id, roaster.name);
           }
+          bagsById.set(bag.id, bag);
           const option = document.createElement("option");
           option.value = bag.id;
-          option.textContent = `${bag.name} — ${roasterNames.get(bag.roasterId) ?? "Unknown roaster"} (${bag.roastDate.toLocaleDateString()})`;
+          option.textContent = `${bagLabel(bag)} (${bag.roastDate.toLocaleDateString()})`;
           bagSelect.append(option);
           bagSelect.value = bag.id;
+          syncBagDisplay();
           nav.hideModal();
         },
       }),
@@ -213,7 +352,7 @@ export async function renderBrewForm(container, nav, options = {}) {
     option.textContent = grinder.name;
     grinderSelect.append(option);
   }
-  grinderSelect.value = existing?.grinderId ?? defaultGrinderId ?? "";
+  grinderSelect.value = existing?.grinderId ?? settings?.defaultGrinderId ?? "";
 
   const grinderCleaningStatusEl = /** @type {HTMLElement} */ (
     container.querySelector("#grinder-cleaning-status")
@@ -238,7 +377,7 @@ export async function renderBrewForm(container, nav, options = {}) {
     option.textContent = brewer.name;
     brewerSelect.append(option);
   }
-  brewerSelect.value = existing?.brewerId ?? defaultBrewerId ?? "";
+  brewerSelect.value = existing?.brewerId ?? settings?.defaultBrewerId ?? "";
 
   const brewerCleaningStatusEl = /** @type {HTMLElement} */ (
     container.querySelector("#brewer-cleaning-status")
@@ -265,53 +404,75 @@ export async function renderBrewForm(container, nav, options = {}) {
     container.querySelector("#brew-grind-size")
   );
   grindSizeInput.value = existing ? String(existing.grindSize) : "";
-  const doseInput = /** @type {HTMLInputElement} */ (
+
+  const doseInput = /** @type {HTMLInputElement | null} */ (
     container.querySelector("#brew-dose")
   );
-  doseInput.value =
-    existing?.doseGrams != null
-      ? String(existing.doseGrams)
-      : settings?.defaultDoseGrams != null
-        ? String(settings.defaultDoseGrams)
-        : "";
-  const yieldInput = /** @type {HTMLInputElement} */ (
+  if (doseInput) {
+    doseInput.value =
+      existing?.doseGrams != null
+        ? String(existing.doseGrams)
+        : settings?.defaultDoseGrams != null
+          ? String(settings.defaultDoseGrams)
+          : "";
+  }
+  const yieldInput = /** @type {HTMLInputElement | null} */ (
     container.querySelector("#brew-yield")
   );
-  yieldInput.value =
-    existing?.yieldGrams != null
-      ? String(existing.yieldGrams)
-      : settings?.defaultYieldGrams != null
-        ? String(settings.defaultYieldGrams)
-        : "";
+  if (yieldInput) {
+    yieldInput.value =
+      existing?.yieldGrams != null
+        ? String(existing.yieldGrams)
+        : settings?.defaultYieldGrams != null
+          ? String(settings.defaultYieldGrams)
+          : "";
+  }
   const extractionInput = /** @type {HTMLInputElement} */ (
     container.querySelector("#brew-extraction-time")
   );
   extractionInput.value = existing ? String(existing.extractionTimeSeconds) : "";
-  const waterTempInput = /** @type {HTMLInputElement} */ (
+  const waterTempInput = /** @type {HTMLInputElement | null} */ (
     container.querySelector("#brew-water-temp")
   );
-  waterTempInput.value =
-    existing?.waterTempCelsius != null
-      ? String(existing.waterTempCelsius)
-      : settings?.defaultWaterTempCelsius != null
-        ? String(settings.defaultWaterTempCelsius)
-        : "";
-  const ratingSelect = /** @type {HTMLSelectElement} */ (
+  if (waterTempInput) {
+    waterTempInput.value =
+      existing?.waterTempCelsius != null
+        ? String(existing.waterTempCelsius)
+        : settings?.defaultWaterTempCelsius != null
+          ? String(settings.defaultWaterTempCelsius)
+          : "";
+  }
+
+  const starsContainer = /** @type {HTMLElement} */ (
+    container.querySelector("#brew-rating-stars")
+  );
+  starsContainer.innerHTML = starRatingHtml();
+  const ratingInput = /** @type {HTMLInputElement} */ (
     container.querySelector("#brew-rating")
   );
-  if (existing) ratingSelect.value = String(existing.rating);
+  const starButtons = /** @type {HTMLButtonElement[]} */ (
+    Array.from(starsContainer.querySelectorAll(".star-rating-star"))
+  );
+  /** @param {number} value */
+  function setRating(value) {
+    ratingInput.value = String(value);
+    for (const button of starButtons) {
+      const filled = Number(button.dataset.value) <= value;
+      button.classList.toggle("filled", filled);
+      button.textContent = filled ? "★" : "☆";
+    }
+  }
+  for (const button of starButtons) {
+    button.addEventListener("click", () =>
+      setRating(Number(button.dataset.value)),
+    );
+  }
+  if (existing) setRating(existing.rating);
+
   const notesTextarea = /** @type {HTMLTextAreaElement} */ (
     container.querySelector("#brew-notes")
   );
   notesTextarea.value = existing?.notes ?? "";
-
-  const cancelButton = /** @type {HTMLButtonElement} */ (
-    container.querySelector("#brew-form-cancel")
-  );
-  cancelButton.addEventListener("click", () => {
-    if (isModal) nav.hideModal();
-    else nav.goBack();
-  });
 
   const form = /** @type {HTMLFormElement} */ (
     container.querySelector("#brew-form")
@@ -376,14 +537,10 @@ export async function renderBrewForm(container, nav, options = {}) {
 
     if (onSaved) {
       await onSaved(saved);
-    } else if (isModal) {
-      nav.hideModal();
     } else {
-      await nav.goBack();
+      nav.hideModal();
     }
   });
-
-  await renderRecentBags();
 }
 
 /**

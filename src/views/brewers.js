@@ -15,9 +15,9 @@ import {
  * Add/edit form for a single brewer, meant to be rendered inside a bottom
  * sheet (via nav.showModal) from the Equipment page. This only ever handles
  * one record at a time. Pass `brewer` as
- * undefined to create a new one instead of editing an existing one,
- * mirroring renderBrewForm's optional-id pattern — mark-cleaned/delete only
- * make sense for an existing record, so they're omitted in create mode.
+ * undefined to create a new one instead of editing an existing one —
+ * mark-cleaned/delete only make sense for an existing record, so they're
+ * omitted in create mode.
  * @param {HTMLElement} container
  * @param {import("../main.js").Nav} nav
  * @param {import("../models/types.js").Brewer | undefined} brewer

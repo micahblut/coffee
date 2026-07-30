@@ -1,5 +1,5 @@
 import { db, getBrewDatesInMonth, getRecentBrews } from "../db/db.js";
-import { renderBrewForm, renderBrewsForDate } from "./brews.js";
+import { renderBrewSheet, renderBrewsForDate } from "./brews.js";
 
 const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 const RECENT_BREWS_LIMIT = 10;
@@ -40,7 +40,14 @@ export async function renderHome(container, nav) {
     container.querySelector("#brew-button")
   );
   brewButton.addEventListener("click", () => {
-    nav.navigate((c) => renderBrewForm(c, nav));
+    nav.showModal((sheet) =>
+      renderBrewSheet(sheet, nav, {
+        onSaved: async () => {
+          nav.hideModal();
+          await Promise.all([renderMonth(), renderRecentBrews()]);
+        },
+      }),
+    );
   });
 
   const calendar = /** @type {HTMLElement} */ (
@@ -185,6 +192,11 @@ export async function renderHome(container, nav) {
 
       item.append(main);
 
+      const meta = document.createElement("p");
+      meta.className = "recent-brew-meta";
+      meta.textContent = `Grind ${brew.grindSize} · ${brew.extractionTimeSeconds}s`;
+      item.append(meta);
+
       if (brew.notes) {
         const notes = document.createElement("p");
         notes.className = "recent-brew-notes";
@@ -201,7 +213,15 @@ export async function renderHome(container, nav) {
     const item = target.closest("[data-brew-id]");
     const brewId = /** @type {HTMLElement | null} */ (item)?.dataset.brewId;
     if (!brewId) return;
-    nav.navigate((c) => renderBrewForm(c, nav, { brewId }));
+    nav.showModal((sheet) =>
+      renderBrewSheet(sheet, nav, {
+        brewId,
+        onSaved: async () => {
+          nav.hideModal();
+          await Promise.all([renderMonth(), renderRecentBrews()]);
+        },
+      }),
+    );
   });
 
   await Promise.all([renderMonth(), renderRecentBrews()]);

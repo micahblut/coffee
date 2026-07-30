@@ -11,7 +11,7 @@ import {
   todayDateInputValue,
 } from "../utils/dates.js";
 import { renderRoasterForm } from "./roasters.js";
-import { renderBrewForm } from "./brews.js";
+import { renderBrewSheet } from "./brews.js";
 import { renderPager } from "./pagination.js";
 
 const BAG_TYPES = ["Espresso", "Filter"];
@@ -422,7 +422,15 @@ export async function renderBagDetail(container, nav, bagId) {
       container.querySelector("#bag-detail-brew-button")
     );
     brewButton.addEventListener("click", () => {
-      nav.navigate((c) => renderBrewForm(c, nav));
+      nav.showModal((sheet) =>
+        renderBrewSheet(sheet, nav, {
+          prefillBagId: bagId,
+          onSaved: async () => {
+            nav.hideModal();
+            await renderBagDetail(container, nav, bagId);
+          },
+        }),
+      );
     });
     return;
   }
@@ -503,7 +511,15 @@ export async function renderBagDetail(container, nav, bagId) {
     const item = event.target.closest("[data-brew-id]");
     const brewId = /** @type {HTMLElement | null} */ (item)?.dataset.brewId;
     if (!brewId) return;
-    nav.navigate((c) => renderBrewForm(c, nav, { brewId }));
+    nav.showModal((sheet) =>
+      renderBrewSheet(sheet, nav, {
+        brewId,
+        onSaved: async () => {
+          nav.hideModal();
+          await renderBagDetail(container, nav, bagId);
+        },
+      }),
+    );
   });
 
   await renderBrews();

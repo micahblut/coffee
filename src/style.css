@@ -62,12 +62,41 @@ body {
 }
 
 form div {
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 
 form label {
   display: block;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+
+/* Baseline look for every text-ish form control app-wide — previously
+   completely unstyled (bare browser defaults), which read as unfinished
+   next to everything else's embossed/red-accented treatment. */
+input:not([type="hidden"]):not([hidden]),
+select,
+textarea {
+  display: block;
+  width: 100%;
+  padding: 0.6rem 0.65rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-steel);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 0.95rem;
+  color: var(--color-ink);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid var(--color-red);
+  outline-offset: 1px;
 }
 
 #recent-bags {
@@ -78,10 +107,13 @@ form label {
 
 /* Floated rather than stacked above content, so the caret sits inline with
    the view's own heading (its first rendered element) instead of on its own
-   row above it. */
+   row above it. Every view's h1 is unstyled (browser default: font-size 2em,
+   margin-block-start 0.67em of that, i.e. ~1.34em of the root size) — the
+   top margin here matches that exactly so the caret's box lines up with
+   where the h1's text actually starts, not the top of its margin box. */
 #back-bar:not(:empty) {
   float: left;
-  margin: 0.4rem 0.5rem 0 0;
+  margin: 1.34rem 0.5rem 0 0;
 }
 
 .back-button {
@@ -873,4 +905,116 @@ button {
 
 .sheet-danger-button:active {
   color: var(--color-red-dark);
+}
+
+/* Add brew sheet
+   ------------------------------------------------------------------ */
+
+/* Shared by every collapsed disclosure in the sheet — settings the user
+   already has a default for, and the full bag picker once a quick pick (or
+   the pre-filled bag) already covers the common case. Collapsed by default
+   so the sheet only surfaces what actually needs a decision right now. */
+.form-details {
+  margin: 0.75rem 0 0;
+}
+
+.form-details summary {
+  cursor: pointer;
+  padding: 0.5rem 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+}
+
+.form-details > div {
+  margin-top: 0.5rem;
+}
+
+/* Quick-pick list for the 3 most recently active bags — tapping one is the
+   zero-typing path through the field most likely to need a decision every
+   time a brew is logged. A plain vertical list (not a wrapped row of chips)
+   since bag names can run long; trying to arrange those into columns just
+   produces uneven wrapping. Same mat-behind-card treatment as Recent Brews
+   and the Coffee page's lists, just with tighter padding on each row. */
+.bag-quick-picks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0.25rem;
+  padding: 0.4rem;
+  background: var(--color-steel-light);
+  border: 1px solid var(--color-steel);
+  border-radius: var(--radius);
+}
+
+.bag-quick-pick {
+  display: flex;
+  align-items: center;
+  padding: 0.4rem 0.6rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-steel);
+  border-radius: var(--radius);
+  box-shadow: var(--emboss-raised);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bag-quick-pick.selected {
+  border-color: var(--color-red);
+  color: var(--color-red);
+  box-shadow: var(--emboss-sunken);
+}
+
+.cleaning-status {
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--color-ink-soft);
+}
+
+/* A low-emphasis text-only escape hatch (e.g. "+ Add new bag") — distinct
+   from .detail-delete-button's red/centered treatment since this isn't a
+   destructive action. */
+.inline-text-button {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--color-ink-soft);
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-decoration: underline;
+}
+
+.star-rating {
+  display: flex;
+  justify-content: center;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Unfilled stars render the hollow ☆ glyph (an outline, not a gray fill) —
+   both states stay red, they just differ in glyph. */
+.star-rating-star {
+  min-width: 2.75rem;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--color-red);
+  font-size: 1.76rem;
+  line-height: 1;
+}
+
+.star-rating-star:active {
+  color: var(--color-red-dark);
+}
+
+.brew-notes-textarea {
+  min-height: 6rem;
+  resize: vertical;
 }
