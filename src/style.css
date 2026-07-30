@@ -7,19 +7,30 @@
 }
 
 :root {
-  --color-bg: #dcd2c4;
+  --color-bg: #ffffff;
   --color-surface: #ffffff;
-  --color-steel: #dcdedf;
-  --color-steel-dark: #aeb3b6;
-  --color-ink: #1d1e20;
-  --color-ink-soft: #64676b;
+  --color-steel-light: #eceded;
+  --color-steel: #d9dadb;
+  --color-steel-dark: #aeb0b2;
+  --color-ink: #1c1c1e;
+  --color-ink-soft: #63666a;
   --color-red: #c8202b;
   --color-red-dark: #9e181f;
-  --radius-lg: 1rem;
-  --radius-md: 0.65rem;
-  --shadow-card:
-    0 1px 2px rgba(0, 0, 0, 0.06),
-    0 4px 12px rgba(0, 0, 0, 0.05);
+  --radius: 0.25rem;
+  /* Embossing, not drop shadows, for a light (white/grey) surface. */
+  --emboss-raised:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+  --emboss-sunken:
+    inset 0 -1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 1px 0 rgba(0, 0, 0, 0.15);
+  /* Same, for a dark (ink) surface — the header, the bottom nav. */
+  --emboss-raised-dark:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+  --emboss-sunken-dark:
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 1px 0 rgba(0, 0, 0, 0.5);
   --bottom-nav-height: 4.25rem;
   --body-padding-x: 1rem;
 }
@@ -99,6 +110,7 @@ button {
   background: var(--color-ink);
   color: var(--color-red);
   border: none;
+  box-shadow: var(--emboss-raised-dark);
   font-family: "Afacad Flux", system-ui, sans-serif;
   font-weight: 700;
   font-size: 1.4rem;
@@ -108,32 +120,37 @@ button {
 }
 
 #app-header:active {
-  background: #000;
+  box-shadow: var(--emboss-sunken-dark);
 }
 
 /* Home screen
    ------------------------------------------------------------------ */
 
-.calendar-shell {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+/* A distinct gray mat behind the white panel below — deliberately not the
+   same white as the page, so the calendar reads as its own layer sitting
+   in front of a further-back surface, not just a bordered box on the page. */
+.calendar-card {
+  background: var(--color-steel-light);
+  border: 1px solid var(--color-steel);
+  border-radius: var(--radius);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    0 8px 20px rgba(0, 0, 0, 0.08);
+  padding: 0.6rem;
 }
 
-.calendar-card {
-  flex: 1;
-  min-width: 0;
+.calendar-panel {
   background: var(--color-surface);
   border: 1px solid var(--color-steel);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
+  border-radius: var(--radius);
+  box-shadow: var(--emboss-sunken);
   padding: 0.75rem 0.6rem;
 }
 
 #calendar-header {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   margin-bottom: 0.5rem;
 }
 
@@ -145,31 +162,22 @@ button {
   color: var(--color-ink-soft);
 }
 
-/* Styled after the espresso machine's dial rings — a silver bezel on a
-   white face, with the machine's red used for the indicator/caret. */
 .calendar-nav-button {
   flex-shrink: 0;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 1.75rem;
+  height: 1.75rem;
   min-height: 0;
   padding: 0;
-  border-radius: 50%;
-  border: 3px solid var(--color-ink);
-  background: var(--color-surface);
+  border: none;
+  background: none;
   color: var(--color-red);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.15s ease;
 }
 
-#calendar-prev:active {
-  transform: rotate(-24deg);
-}
-
-#calendar-next:active {
-  transform: rotate(24deg);
+.calendar-nav-button:active {
+  color: var(--color-red-dark);
 }
 
 #calendar-grid {
@@ -196,7 +204,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
+  border-radius: var(--radius);
   font-size: 0.8rem;
   cursor: pointer;
 }
@@ -209,34 +217,45 @@ button {
 
 .calendar-day.has-brew {
   border: 2px solid var(--color-red);
-  border-radius: 0.3rem;
 }
 
 .calendar-day.is-today.has-brew {
   background: var(--color-ink);
   color: var(--color-surface);
-  border-radius: 0.3rem;
+}
+
+/* Same mat-behind-panel treatment as the calendar — the button sits proud
+   of a gray backing frame rather than directly on the white page. */
+.brew-button-frame {
+  background: var(--color-steel-light);
+  border: 1px solid var(--color-steel);
+  border-radius: var(--radius);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    0 8px 20px rgba(0, 0, 0, 0.08);
+  padding: 0.5rem;
+  margin-bottom: 2rem;
 }
 
 .brew-button {
   display: block;
   width: 100%;
-  background: var(--color-red);
-  color: var(--color-surface);
+  background: var(--color-surface);
+  color: var(--color-red);
   font-weight: 700;
   font-size: 1rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  border: none;
-  border-radius: 999px;
+  border: 2px solid var(--color-steel);
+  border-radius: var(--radius);
   padding: 0.9rem;
-  margin-bottom: 2rem;
-  box-shadow: 0 4px 12px rgb(from var(--color-red) r g b / 0.35);
+  box-shadow: var(--emboss-raised);
 }
 
 .brew-button:active {
-  background: var(--color-red-dark);
-  box-shadow: none;
+  color: var(--color-red-dark);
+  border-color: var(--color-red-dark);
+  box-shadow: var(--emboss-sunken);
 }
 
 .recent-brews h2 {
@@ -248,19 +267,28 @@ button {
   color: var(--color-ink-soft);
 }
 
+/* Same mat-behind-panel treatment as the calendar and brew button — the
+   cards float above a gray backing frame rather than the white page. */
 .recent-brews-list {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 0.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  background: var(--color-steel-light);
+  border: 1px solid var(--color-steel);
+  border-radius: var(--radius);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    0 8px 20px rgba(0, 0, 0, 0.08);
 }
 
 .recent-brew {
   background: var(--color-surface);
   border: 1px solid var(--color-steel);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius);
+  box-shadow: var(--emboss-raised);
   padding: 0.65rem 0.85rem;
   cursor: pointer;
 }
@@ -318,7 +346,8 @@ button {
   text-align: left;
   background: var(--color-surface);
   border: 1px solid var(--color-steel);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius);
+  box-shadow: var(--emboss-raised);
   font-weight: 600;
 }
 
@@ -334,6 +363,7 @@ button {
   margin: 0 auto;
   display: flex;
   background: var(--color-ink);
+  box-shadow: var(--emboss-raised-dark);
   z-index: 10;
 }
 
