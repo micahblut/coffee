@@ -1,6 +1,6 @@
 import { db, getBagsPageWithRatings, getRoastersRankedByRating } from "../db/db.js";
 import { renderBagForm, renderBagDetail } from "./bags.js";
-import { renderRoasterForm } from "./roasters.js";
+import { renderRoasterForm, renderRoasterDetail } from "./roasters.js";
 import { renderPager } from "./pagination.js";
 
 // Both lists here are the full catalog (all bags, all roasters) rather than
@@ -27,7 +27,7 @@ function formatBagStars(averageRating) {
 }
 
 /**
- * The Coffee page — Recent Bags and Top Roasters, each the full catalog
+ * The Coffee page — Recent Bags and Favorite Roasters, each the full catalog
  * (paginated), styled as a mat of cards like Recent Brews on the home
  * screen. Distinct from the home screen, which stays reachable via the app
  * header.
@@ -46,7 +46,7 @@ export async function renderCoffeeHome(container, nav) {
       </div>
     </section>
     <section class="coffee-section">
-      <h2>Top roasters</h2>
+      <h2>Favorite roasters</h2>
       <ul id="top-roasters-list" class="coffee-list"></ul>
       <div id="top-roasters-pagination"></div>
       <div class="brew-button-frame">
@@ -247,20 +247,10 @@ export async function renderCoffeeHome(container, nav) {
       .roasterId;
     if (!roasterId) return;
 
-    nav.showModal((sheet) =>
-      renderRoasterForm(sheet, nav, {
-        roasterId,
-        isModal: true,
-        onSaved: async () => {
-          nav.hideModal();
-          await renderTopRoasters();
-        },
-        onDeleted: async () => {
-          roastersOffset = 0;
-          await renderTopRoasters();
-        },
-      }),
-    );
+    // A roaster's full detail (favorite bags) doesn't fit a sheet, and
+    // editing/deleting lives behind its pencil icon now — so this pushes a
+    // real page (with its own Back) instead of opening a modal.
+    nav.navigate((c) => renderRoasterDetail(c, nav, roasterId));
   });
 
   await Promise.all([renderRecentBags(), renderTopRoasters()]);

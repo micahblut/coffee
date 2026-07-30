@@ -1,7 +1,25 @@
-import { db, newId, getBagsForRoaster, countBagsForRoaster } from "../db/db.js";
-import { renderBagDetail, formatBagDetails } from "./bags.js";
+import {
+  db,
+  newId,
+  countBagsForRoaster,
+  getRoasterBagsRankedByRating,
+} from "../db/db.js";
+import { renderBagDetail, renderBagForm } from "./bags.js";
+import { renderPager } from "./pagination.js";
 
-const PAGE_SIZE = 10;
+// Matches the page size used for every list on the Coffee page.
+const PAGE_SIZE = 5;
+
+const PENCIL_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>`;
+
+/**
+ * @param {number} rating
+ * @returns {string}
+ */
+function formatRatingStars(rating) {
+  const rounded = Math.round(rating);
+  return `${"★".repeat(rounded)}${"☆".repeat(5 - rounded)} ${rating.toFixed(1)}`;
+}
 
 /**
  * @param {HTMLElement} container
@@ -10,16 +28,16 @@ const PAGE_SIZE = 10;
  *   roasterId?: string,
  *   isModal?: boolean,
  *   onSaved?: (roaster: import("../models/types.js").Roaster) => void | Promise<void>,
- *   onDeleted?: () => void | Promise<void>,
  * }} [options]
  */
 export async function renderRoasterForm(container, nav, options = {}) {
-  const { roasterId, isModal, onSaved, onDeleted } = options;
+  const { roasterId, isModal, onSaved } = options;
   const existing = roasterId ? await db.roasters.get(roasterId) : undefined;
 
   // Editing an existing roaster from a sheet (the Coffee page's tap-to-edit
   // flow) skips the Cancel button in favor of the sheet's drag-to-dismiss
-  // gesture, and adds Delete — mirrors the Grinder/Brewer edit sheets.
+  // gesture — deleting a roaster now lives on the Roaster View page itself
+  // instead.
   const isEditSheet = isModal && roasterId;
 
   container.innerHTML = `
@@ -46,15 +64,6 @@ export async function renderRoasterForm(container, nav, options = {}) {
       `
       }
     </form>
-    ${
-      isEditSheet
-        ? `
-      <div class="sheet-secondary-actions">
-        <button type="button" id="roaster-form-delete" class="sheet-danger-button">Delete roaster</button>
-      </div>
-    `
-        : ""
-    }
   `;
 
   const form = /** @type {HTMLFormElement} */ (
@@ -76,21 +85,6 @@ export async function renderRoasterForm(container, nav, options = {}) {
     if (isModal) nav.hideModal();
     else nav.goBack();
   });
-
-  if (isEditSheet) {
-    const deleteButton = /** @type {HTMLButtonElement} */ (
-      container.querySelector("#roaster-form-delete")
-    );
-    deleteButton.addEventListener("click", async () => {
-      if (
-        !(await nav.confirm("Delete this roaster?", { confirmLabel: "Delete" }))
-      )
-        return;
-      await db.roasters.delete(roasterId);
-      nav.hideModal();
-      await onDeleted?.();
-    });
-  }
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -123,104 +117,22 @@ export async function renderRoasterForm(container, nav, options = {}) {
 }
 
 /**
- * @param {HTMLElement} container
- * @param {import("../main.js").Nav} nav
- */
-export async function renderRoastersList(container, nav) {
-  container.innerHTML = `
-    <h1>Roasters</h1>
-    <button type="button" id="add-roaster">Add roaster</button>
-    <ul id="roaster-list"></ul>
-  `;
-
-  const addButton = /** @type {HTMLButtonElement} */ (
-    container.querySelector("#add-roaster")
-  );
-  addButton.addEventListener("click", () => {
-    nav.navigate((c) => renderRoasterForm(c, nav));
-  });
-
-  const list = /** @type {HTMLUListElement} */ (
-    container.querySelector("#roaster-list")
-  );
-
-  list.addEventListener("click", async (event) => {
-    const target = /** @type {HTMLElement} */ (event.target);
-
-    const viewId = target.dataset.viewId;
-    if (viewId) {
-      await nav.navigate((c) => renderRoasterDetail(c, nav, viewId));
-      return;
-    }
-
-    const editId = target.dataset.editId;
-    if (editId) {
-      await nav.navigate((c) => renderRoasterForm(c, nav, { roasterId: editId }));
-      return;
-    }
-
-    const deleteId = target.dataset.deleteId;
-    if (!deleteId) return;
-
-    if (!(await nav.confirm("Delete this roaster?", { confirmLabel: "Delete" })))
-      return;
-    await db.roasters.delete(deleteId);
-    await renderList();
-  });
-
-  async function renderList() {
-    const roasters = await db.roasters.orderBy("name").toArray();
-    list.innerHTML = "";
-
-    for (const roaster of roasters) {
-      const item = document.createElement("li");
-
-      const nameButton = document.createElement("button");
-      nameButton.type = "button";
-      nameButton.textContent = roaster.name;
-      nameButton.dataset.viewId = roaster.id;
-      item.append(nameButton);
-
-      if (roaster.website && /^https?:\/\//i.test(roaster.website)) {
-        item.append(" — ");
-        const link = document.createElement("a");
-        link.href = roaster.website;
-        link.textContent = roaster.website;
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        item.append(link);
-      } else if (roaster.website) {
-        item.append(` — ${roaster.website}`);
-      }
-
-      item.append(" — ");
-      const editButton = document.createElement("button");
-      editButton.type = "button";
-      editButton.textContent = "Edit";
-      editButton.dataset.editId = roaster.id;
-      item.append(editButton);
-
-      item.append(" ");
-      const deleteButton = document.createElement("button");
-      deleteButton.type = "button";
-      deleteButton.textContent = "Delete";
-      deleteButton.dataset.deleteId = roaster.id;
-      item.append(deleteButton);
-
-      list.append(item);
-    }
-  }
-
-  await renderList();
-}
-
-/**
+ * The Roaster View — mirrors the Bag View: an embossed card with the
+ * roaster's own details, a paginated "Favorite bags" list (the roaster's
+ * full set of bags ranked by average brew rating, mirroring the Coffee
+ * page's Favorite Roasters ranking so an unrated bag still shows up rather than
+ * being invisible), and a standalone Delete button at the bottom. Reached by
+ * pushing a real page via nav.navigate rather than a sheet, same rationale
+ * as the Bag View.
  * @param {HTMLElement} container
  * @param {import("../main.js").Nav} nav
  * @param {string} roasterId
  */
 export async function renderRoasterDetail(container, nav, roasterId) {
-  const roaster = await db.roasters.get(roasterId);
+  const [roaster, totalBags] = await Promise.all([
+    db.roasters.get(roasterId),
+    countBagsForRoaster(roasterId),
+  ]);
   if (!roaster) {
     container.innerHTML = "";
     const message = document.createElement("p");
@@ -229,97 +141,155 @@ export async function renderRoasterDetail(container, nav, roasterId) {
     return;
   }
 
+  const hasBags = totalBags > 0;
+  const isLink = roaster.website && /^https?:\/\//i.test(roaster.website);
+
   container.innerHTML = `
-    <h1 id="roaster-detail-title"></h1>
-    <p id="roaster-detail-website"></p>
-    <h2>Bags</h2>
-    <ul id="roaster-detail-bags"></ul>
-    <div id="roaster-detail-pagination"></div>
+    <h1>${roaster.name}</h1>
+    <section class="detail-card">
+      <div class="detail-panel">
+        <div class="detail-header">
+          <div>
+            <p class="detail-name">${roaster.name}</p>
+            ${
+              roaster.website
+                ? isLink
+                  ? `<a href="${roaster.website}" target="_blank" rel="noopener noreferrer" class="coffee-item-link">${roaster.website}</a>`
+                  : `<p class="coffee-item-link">${roaster.website}</p>`
+                : ""
+            }
+          </div>
+          <button type="button" id="roaster-detail-edit" class="detail-edit-button" aria-label="Edit roaster">${PENCIL_ICON}</button>
+        </div>
+      </div>
+    </section>
+    ${
+      hasBags
+        ? `
+    <section class="coffee-section">
+      <h2>Favorite bags</h2>
+      <ul id="roaster-detail-bags-list" class="coffee-list"></ul>
+      <div id="roaster-detail-bags-pagination"></div>
+    </section>
+    `
+        : `
+    <div class="brew-button-frame">
+      <button type="button" id="roaster-detail-add-bag" class="brew-button">Add bag</button>
+    </div>
+    `
+    }
+    <button type="button" id="roaster-detail-delete" class="detail-delete-button">Delete roaster</button>
   `;
 
-  const title = /** @type {HTMLElement} */ (
-    container.querySelector("#roaster-detail-title")
+  const editButton = /** @type {HTMLButtonElement} */ (
+    container.querySelector("#roaster-detail-edit")
   );
-  title.textContent = roaster.name;
+  editButton.addEventListener("click", () => {
+    nav.showModal((sheet) =>
+      renderRoasterForm(sheet, nav, {
+        roasterId,
+        isModal: true,
+        onSaved: async () => {
+          nav.hideModal();
+          await renderRoasterDetail(container, nav, roasterId);
+        },
+      }),
+    );
+  });
 
-  const websiteEl = /** @type {HTMLElement} */ (
-    container.querySelector("#roaster-detail-website")
+  const deleteButton = /** @type {HTMLButtonElement} */ (
+    container.querySelector("#roaster-detail-delete")
   );
-  if (roaster.website && /^https?:\/\//i.test(roaster.website)) {
-    const link = document.createElement("a");
-    link.href = roaster.website;
-    link.textContent = roaster.website;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    websiteEl.append(link);
-  } else if (roaster.website) {
-    websiteEl.textContent = roaster.website;
+  deleteButton.addEventListener("click", async () => {
+    if (!(await nav.confirm("Delete this roaster?", { confirmLabel: "Delete" })))
+      return;
+    await db.roasters.delete(roasterId);
+    await nav.goBack();
+  });
+
+  if (!hasBags) {
+    const addBagButton = /** @type {HTMLButtonElement} */ (
+      container.querySelector("#roaster-detail-add-bag")
+    );
+    addBagButton.addEventListener("click", () => {
+      nav.showModal((sheet) =>
+        renderBagForm(sheet, nav, {
+          isModal: true,
+          onSaved: async () => {
+            nav.hideModal();
+            await renderRoasterDetail(container, nav, roasterId);
+          },
+        }),
+      );
+    });
+    return;
   }
 
   const list = /** @type {HTMLUListElement} */ (
-    container.querySelector("#roaster-detail-bags")
+    container.querySelector("#roaster-detail-bags-list")
   );
   const pagination = /** @type {HTMLElement} */ (
-    container.querySelector("#roaster-detail-pagination")
+    container.querySelector("#roaster-detail-bags-pagination")
   );
 
   let offset = 0;
 
-  async function renderPage() {
-    const [bags, total] = await Promise.all([
-      getBagsForRoaster(roasterId, { offset, limit: PAGE_SIZE }),
+  async function renderBags() {
+    const [entries, total] = await Promise.all([
+      getRoasterBagsRankedByRating(roasterId, { offset, limit: PAGE_SIZE }),
       countBagsForRoaster(roasterId),
     ]);
 
     list.innerHTML = "";
 
-    if (bags.length === 0) {
-      const empty = document.createElement("li");
-      empty.textContent = "No bags from this roaster yet.";
-      list.append(empty);
-    }
-
-    for (const bag of bags) {
+    for (const { bag, averageRating } of entries) {
       const item = document.createElement("li");
+      item.className = "coffee-item";
+      item.dataset.bagId = bag.id;
 
-      const nameButton = document.createElement("button");
-      nameButton.type = "button";
-      nameButton.textContent = bag.name;
-      nameButton.addEventListener("click", () => {
-        nav.navigate((c) => renderBagDetail(c, nav, bag.id));
+      const main = document.createElement("div");
+      main.className = "coffee-item-main";
+
+      const stars = document.createElement("span");
+      stars.className = "coffee-item-stars";
+      stars.textContent = formatRatingStars(averageRating);
+      main.append(stars);
+
+      const name = document.createElement("span");
+      name.className = "coffee-item-name";
+      name.textContent = bag.name;
+      main.append(name);
+
+      const date = document.createElement("span");
+      date.className = "coffee-item-date";
+      date.textContent = bag.roastDate.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
       });
-      item.append(nameButton);
+      main.append(date);
 
-      item.append(` — ${formatBagDetails(bag)}`);
+      item.append(main);
       list.append(item);
     }
 
-    pagination.innerHTML = "";
-    if (total > PAGE_SIZE) {
-      const prevButton = document.createElement("button");
-      prevButton.type = "button";
-      prevButton.textContent = "Previous";
-      prevButton.disabled = offset === 0;
-      prevButton.addEventListener("click", () => {
-        offset = Math.max(0, offset - PAGE_SIZE);
-        renderPage();
-      });
-
-      const status = document.createElement("span");
-      status.textContent = ` ${offset + 1}–${Math.min(offset + PAGE_SIZE, total)} of ${total} `;
-
-      const nextButton = document.createElement("button");
-      nextButton.type = "button";
-      nextButton.textContent = "Next";
-      nextButton.disabled = offset + PAGE_SIZE >= total;
-      nextButton.addEventListener("click", () => {
-        offset += PAGE_SIZE;
-        renderPage();
-      });
-
-      pagination.append(prevButton, status, nextButton);
-    }
+    renderPager(pagination, {
+      offset,
+      total,
+      pageSize: PAGE_SIZE,
+      onChange: (newOffset) => {
+        offset = newOffset;
+        renderBags();
+      },
+    });
   }
 
-  await renderPage();
+  list.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element)) return;
+    const item = event.target.closest("[data-bag-id]");
+    const bagId = /** @type {HTMLElement | null} */ (item)?.dataset.bagId;
+    if (!bagId) return;
+    nav.navigate((c) => renderBagDetail(c, nav, bagId));
+  });
+
+  await renderBags();
 }

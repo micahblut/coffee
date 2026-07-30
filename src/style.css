@@ -70,13 +70,6 @@ form label {
   margin-bottom: 0.25rem;
 }
 
-#nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-}
-
 #recent-bags {
   display: flex;
   gap: 0.5rem;
@@ -540,11 +533,13 @@ button {
   color: var(--color-ink-soft);
 }
 
-/* Bag detail screen
+/* Detail screens (shared)
    ------------------------------------------------------------------ */
 
-/* Same mat-behind-panel treatment as the calendar on the home screen. */
-.bag-detail-card,
+/* The mat-behind-panel/header/edit-pencil/delete-button recipe shared by
+   every "detail" view (Bag View, Roaster View, ...) — same treatment as the
+   calendar on the home screen. */
+.detail-card,
 .bag-detail-chart-card {
   background: var(--color-steel-light);
   border: 1px solid var(--color-steel);
@@ -556,7 +551,7 @@ button {
   margin-bottom: 1.5rem;
 }
 
-.bag-detail-panel {
+.detail-panel {
   background: var(--color-surface);
   border: 1px solid var(--color-steel);
   border-radius: var(--radius);
@@ -564,14 +559,14 @@ button {
   padding: 0.85rem;
 }
 
-.bag-detail-header {
+.detail-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.5rem;
 }
 
-.bag-detail-name {
+.detail-name {
   margin: 0;
   font-size: 1.05rem;
   font-weight: 700;
@@ -590,8 +585,9 @@ button {
   color: var(--color-ink-soft);
 }
 
-/* Inert for now — this is a placeholder for a future dedicated edit flow. */
-.bag-detail-edit-button {
+/* The bag's own edit pencil opens the bag edit sheet; the roaster's does the
+   same for the roaster edit sheet. */
+.detail-edit-button {
   flex-shrink: 0;
   width: 1.75rem;
   height: 1.75rem;
@@ -605,7 +601,7 @@ button {
   justify-content: center;
 }
 
-.bag-detail-edit-button:active {
+.detail-edit-button:active {
   color: var(--color-red-dark);
 }
 
@@ -660,6 +656,22 @@ button {
 
 .bag-detail-chart-dot {
   fill: var(--color-red);
+}
+
+.detail-delete-button {
+  display: block;
+  width: 100%;
+  margin-top: 1rem;
+  background: none;
+  border: none;
+  color: var(--color-red);
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.detail-delete-button:active {
+  color: var(--color-red-dark);
 }
 
 /* Settings screen
@@ -719,7 +731,9 @@ button {
   display: flex;
   background: var(--color-ink);
   box-shadow: var(--emboss-raised-dark);
-  z-index: 10;
+  /* Above .modal-backdrop, so sheets slide up behind it instead of
+     covering it. */
+  z-index: 20;
 }
 
 #bottom-nav button {
@@ -751,15 +765,22 @@ button {
 /* Bottom sheet
    ------------------------------------------------------------------ */
 
+/* Stops above the bottom nav (rather than inset: 0) so a sheet's own
+   flex-end alignment rests its bottom edge there too — otherwise the sheet's
+   bottommost content (e.g. its Save button) would render underneath the
+   nav, which now sits visually on top of it. */
 .modal-backdrop {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom));
   display: flex;
   align-items: flex-end;
   justify-content: center;
   background: rgba(0, 0, 0, 0);
   transition: background 0.25s ease;
-  z-index: 20;
+  z-index: 10;
 }
 
 .modal-backdrop.open {

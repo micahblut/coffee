@@ -274,6 +274,53 @@ export async function getBestRatedBagsForRoaster(
 }
 
 /**
+ * A page of a roaster's bags ranked by average brew rating, highest first —
+ * used for the Roaster View's "Favorite bags" list, which (like the Coffee
+ * page's Favorite Roasters) is the roaster's full set of bags, not a bounded
+ * leaderboard. Unrated bags (no logged brews yet) are included with an
+ * average of 0 rather than excluded, so a newly-added bag shows up
+ * immediately instead of being invisible until it earns enough brews. Ties
+ * break alphabetically by bag name.
+ * @param {string} roasterId
+ * @param {Page} [page]
+ * @returns {Promise<RatedBag[]>}
+ */
+export async function getRoasterBagsRankedByRating(roasterId, { offset = 0, limit } = {}) {
+  const bags = await db.bags.where("roasterId").equals(roasterId).toArray();
+  if (bags.length === 0) return [];
+
+  const brews = await db.brews
+    .where("bagId")
+    .anyOf(bags.map((bag) => bag.id))
+    .toArray();
+
+  /** @type {Map<string, Brew[]>} */
+  const brewsByBagId = new Map();
+  for (const brew of brews) {
+    const bagBrews = brewsByBagId.get(brew.bagId) ?? [];
+    bagBrews.push(brew);
+    brewsByBagId.set(brew.bagId, bagBrews);
+  }
+
+  const ranked = bags
+    .map((bag) => {
+      const bagBrews = brewsByBagId.get(bag.id) ?? [];
+      const averageRating = bagBrews.length
+        ? bagBrews.reduce((sum, brew) => sum + brew.rating, 0) / bagBrews.length
+        : 0;
+      return { bag, averageRating, brewCount: bagBrews.length };
+    })
+    .sort(
+      (a, b) =>
+        b.averageRating - a.averageRating || a.bag.name.localeCompare(b.bag.name),
+    );
+
+  return limit != null
+    ? ranked.slice(offset, offset + limit)
+    : ranked.slice(offset);
+}
+
+/**
  * @typedef {Object} RatedRoaster
  * @property {Roaster} roaster
  * @property {number} averageRating
@@ -282,7 +329,7 @@ export async function getBestRatedBagsForRoaster(
 
 /**
  * A page of every roaster ranked by average brew rating across all of their
- * bags combined, highest first — used for the Coffee page's "Top Roasters"
+ * bags combined, highest first — used for the Coffee page's "Favorite Roasters"
  * list, which is the full roaster catalog, not a bounded leaderboard.
  * Unrated roasters (no logged brews yet) are included with an average of 0
  * rather than excluded, so a newly-added roaster shows up immediately

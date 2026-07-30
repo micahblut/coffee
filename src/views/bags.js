@@ -136,29 +136,16 @@ function renderFreshnessChartSvg(points) {
 }
 
 /**
- * @param {import("../models/types.js").Bag} bag
- * @returns {string}
- */
-export function formatBagDetails(bag) {
-  const details = [bag.type, bag.roastDate.toLocaleDateString()];
-  if (bag.origin) details.push(bag.origin);
-  if (bag.process) details.push(bag.process);
-  if (bag.weightGrams) details.push(`${bag.weightGrams}g`);
-  return details.join(", ");
-}
-
-/**
  * @param {HTMLElement} container
  * @param {import("../main.js").Nav} nav
  * @param {{
  *   bagId?: string,
  *   isModal?: boolean,
  *   onSaved?: (bag: import("../models/types.js").Bag) => void | Promise<void>,
- *   onDeleted?: () => void | Promise<void>,
  * }} [options]
  */
 export async function renderBagForm(container, nav, options = {}) {
-  const { bagId, isModal, onSaved, onDeleted } = options;
+  const { bagId, isModal, onSaved } = options;
   const [roasters, existing] = await Promise.all([
     db.roasters.orderBy("name").toArray(),
     bagId ? db.bags.get(bagId) : undefined,
@@ -166,7 +153,7 @@ export async function renderBagForm(container, nav, options = {}) {
 
   // Editing an existing bag from a sheet (the Coffee page's tap-to-edit
   // flow) skips the Cancel button in favor of the sheet's drag-to-dismiss
-  // gesture, and adds Delete — mirrors the Roaster/Grinder/Brewer sheets.
+  // gesture — deleting a bag now lives on the Bag View page itself instead.
   const isEditSheet = isModal && bagId;
 
   container.innerHTML = `
@@ -219,15 +206,6 @@ export async function renderBagForm(container, nav, options = {}) {
       `
       }
     </form>
-    ${
-      isEditSheet
-        ? `
-      <div class="sheet-secondary-actions">
-        <button type="button" id="bag-form-delete" class="sheet-danger-button">Delete bag</button>
-      </div>
-    `
-        : ""
-    }
   `;
 
   const roasterSelect = /** @type {HTMLSelectElement} */ (
@@ -278,19 +256,6 @@ export async function renderBagForm(container, nav, options = {}) {
     if (isModal) nav.hideModal();
     else nav.goBack();
   });
-
-  if (isEditSheet) {
-    const deleteButton = /** @type {HTMLButtonElement} */ (
-      container.querySelector("#bag-form-delete")
-    );
-    deleteButton.addEventListener("click", async () => {
-      if (!(await nav.confirm("Delete this bag?", { confirmLabel: "Delete" })))
-        return;
-      await db.bags.delete(bagId);
-      nav.hideModal();
-      await onDeleted?.();
-    });
-  }
 
   const addRoasterButton = /** @type {HTMLButtonElement} */ (
     container.querySelector("#add-roaster-inline")
@@ -358,91 +323,6 @@ export async function renderBagForm(container, nav, options = {}) {
 }
 
 /**
- * @param {HTMLElement} container
- * @param {import("../main.js").Nav} nav
- */
-export async function renderBagsList(container, nav) {
-  const roasters = await db.roasters.orderBy("name").toArray();
-
-  container.innerHTML = `
-    <h1>Bags</h1>
-    <button type="button" id="add-bag">Add bag</button>
-    <ul id="bag-list"></ul>
-  `;
-
-  const addButton = /** @type {HTMLButtonElement} */ (
-    container.querySelector("#add-bag")
-  );
-  addButton.addEventListener("click", () => {
-    nav.navigate((c) => renderBagForm(c, nav));
-  });
-
-  const list = /** @type {HTMLUListElement} */ (
-    container.querySelector("#bag-list")
-  );
-
-  list.addEventListener("click", async (event) => {
-    const target = /** @type {HTMLElement} */ (event.target);
-
-    const viewId = target.dataset.viewId;
-    if (viewId) {
-      await nav.navigate((c) => renderBagDetail(c, nav, viewId));
-      return;
-    }
-
-    const editId = target.dataset.editId;
-    if (editId) {
-      await nav.navigate((c) => renderBagForm(c, nav, { bagId: editId }));
-      return;
-    }
-
-    const deleteId = target.dataset.deleteId;
-    if (!deleteId) return;
-
-    if (!(await nav.confirm("Delete this bag?", { confirmLabel: "Delete" })))
-      return;
-    await db.bags.delete(deleteId);
-    await renderList();
-  });
-
-  async function renderList() {
-    const roasterNames = new Map(roasters.map((r) => [r.id, r.name]));
-    const bags = await db.bags.orderBy("roastDate").reverse().toArray();
-    list.innerHTML = "";
-
-    for (const bag of bags) {
-      const item = document.createElement("li");
-
-      const nameButton = document.createElement("button");
-      nameButton.type = "button";
-      nameButton.textContent = `${bag.name} — ${roasterNames.get(bag.roasterId) ?? "Unknown roaster"}`;
-      nameButton.dataset.viewId = bag.id;
-      item.append(nameButton);
-
-      item.append(` — ${formatBagDetails(bag)}`);
-
-      item.append(" — ");
-      const editButton = document.createElement("button");
-      editButton.type = "button";
-      editButton.textContent = "Edit";
-      editButton.dataset.editId = bag.id;
-      item.append(editButton);
-
-      item.append(" ");
-      const deleteButton = document.createElement("button");
-      deleteButton.type = "button";
-      deleteButton.textContent = "Delete";
-      deleteButton.dataset.deleteId = bag.id;
-      item.append(deleteButton);
-
-      list.append(item);
-    }
-  }
-
-  await renderList();
-}
-
-/**
  * The Bag View — a bag's own details (embossed card, matching the home
  * screen calendar), a freshness scatter chart, and its brew history
  * (styled like the home screen's Recent Brews, paginated the same way the
@@ -475,15 +355,15 @@ export async function renderBagDetail(container, nav, bagId) {
 
   container.innerHTML = `
     <h1>${bag.name}</h1>
-    <section class="bag-detail-card">
-      <div class="bag-detail-panel">
-        <div class="bag-detail-header">
+    <section class="detail-card">
+      <div class="detail-panel">
+        <div class="detail-header">
           <div>
-            <p class="bag-detail-name">${bag.name}${bag.weightGrams ? ` — ${bag.weightGrams}g` : ""}</p>
+            <p class="detail-name">${bag.name}${bag.weightGrams ? ` — ${bag.weightGrams}g` : ""}</p>
             ${averageRating != null ? `<p class="bag-detail-stars">${formatAverageRatingStars(averageRating)}</p>` : ""}
             ${metaLine ? `<p class="bag-detail-meta">${metaLine}</p>` : ""}
           </div>
-          <button type="button" id="bag-detail-edit" class="bag-detail-edit-button" aria-label="Edit bag">${PENCIL_ICON}</button>
+          <button type="button" id="bag-detail-edit" class="detail-edit-button" aria-label="Edit bag">${PENCIL_ICON}</button>
         </div>
       </div>
     </section>
@@ -508,6 +388,7 @@ export async function renderBagDetail(container, nav, bagId) {
     </div>
     `
     }
+    <button type="button" id="bag-detail-delete" class="detail-delete-button">Delete bag</button>
   `;
 
   const editButton = /** @type {HTMLButtonElement} */ (
@@ -522,12 +403,18 @@ export async function renderBagDetail(container, nav, bagId) {
           nav.hideModal();
           await renderBagDetail(container, nav, bagId);
         },
-        onDeleted: async () => {
-          nav.hideModal();
-          await nav.goBack();
-        },
       }),
     );
+  });
+
+  const deleteButton = /** @type {HTMLButtonElement} */ (
+    container.querySelector("#bag-detail-delete")
+  );
+  deleteButton.addEventListener("click", async () => {
+    if (!(await nav.confirm("Delete this bag?", { confirmLabel: "Delete" })))
+      return;
+    await db.bags.delete(bagId);
+    await nav.goBack();
   });
 
   if (!hasBrews) {

@@ -1,10 +1,5 @@
 import { db } from "./db/db.js";
 import { renderHome, CHEVRON_LEFT } from "./views/home.js";
-import { renderRoastersList } from "./views/roasters.js";
-import { renderBagsList } from "./views/bags.js";
-import { renderGrinders } from "./views/grinders.js";
-import { renderBrewers } from "./views/brewers.js";
-import { renderBrewsList } from "./views/brews.js";
 import { renderSettings } from "./views/settings.js";
 import { renderEquipmentHome } from "./views/equipment.js";
 import { renderCoffeeHome } from "./views/coffee.js";
@@ -21,51 +16,15 @@ import { renderCoffeeHome } from "./views/coffee.js";
 
 const app = /** @type {HTMLElement} */ (document.getElementById("app"));
 
+// Keyed by bottom-nav tab, plus "home" (reachable via the app header).
+// Roasters, bags, grinders, and brewers are managed entirely through the
+// Coffee/Equipment tabs and their own detail pages now, so they no longer
+// need root-level views of their own.
 const VIEWS = {
-  // hideFromTopNav: the app header (built below) is the tap target back to
-  // home now, so it doesn't also need a slot in the top nav row.
-  home: { label: "Home", render: renderHome, hideFromTopNav: true },
-  // hideFromTopNav: superseded by the bottom nav's "Coffee" tab, which
-  // covers viewing/editing/adding roasters and bags via its own sheets.
-  roasters: {
-    label: "Roasters",
-    render: renderRoastersList,
-    hideFromTopNav: true,
-  },
-  bags: { label: "Bags", render: renderBagsList, hideFromTopNav: true },
-  // hideFromTopNav: superseded by the bottom nav's "Equipment" tab, which
-  // covers viewing/editing/adding grinders and brewers via its own sheets.
-  grinders: {
-    label: "Grinders",
-    render: renderGrinders,
-    hideFromTopNav: true,
-  },
-  brewers: {
-    label: "Brewers",
-    render: renderBrewers,
-    hideFromTopNav: true,
-  },
-  brews: { label: "Brews", render: renderBrewsList, hideFromTopNav: false },
-  // hideFromTopNav: superseded by the bottom nav's "Settings" tab.
-  settings: {
-    label: "Settings",
-    render: renderSettings,
-    hideFromTopNav: true,
-  },
-  // Reachable from the bottom nav's "Equipment" tab, not the legacy top nav
-  // row.
-  equipment: {
-    label: "Equipment",
-    render: renderEquipmentHome,
-    hideFromTopNav: true,
-  },
-  // Reachable from the bottom nav's "Coffee" tab — distinct from Home
-  // (which stays reachable via the app header).
-  coffee: {
-    label: "Coffee",
-    render: renderCoffeeHome,
-    hideFromTopNav: true,
-  },
+  home: renderHome,
+  settings: renderSettings,
+  equipment: renderEquipmentHome,
+  coffee: renderCoffeeHome,
 };
 
 const BOTTOM_NAV_ITEMS = /** @type {const} */ ([
@@ -97,7 +56,6 @@ async function main() {
   app.innerHTML = `
     <button type="button" id="app-header">Caffè Quaderno</button>
     <div id="app-frame">
-      <nav id="nav"></nav>
       <div id="back-bar"></div>
       <div id="content"></div>
       <div id="modal-root"></div>
@@ -107,7 +65,6 @@ async function main() {
   const appHeader = /** @type {HTMLButtonElement} */ (
     app.querySelector("#app-header")
   );
-  const navEl = /** @type {HTMLElement} */ (app.querySelector("#nav"));
   const backBar = /** @type {HTMLElement} */ (app.querySelector("#back-bar"));
   const content = /** @type {HTMLElement} */ (app.querySelector("#content"));
   const modalRoot = /** @type {HTMLElement} */ (
@@ -311,29 +268,17 @@ async function main() {
     activeTabKey = key;
     for (const el of modalContainers) el.remove();
     modalContainers = [];
-    stack = [(container) => VIEWS[key].render(container, nav)];
+    stack = [(container) => VIEWS[key](container, nav)];
     renderCurrent();
     for (const button of bottomNavEl.querySelectorAll("button")) {
       button.classList.toggle("active", button.dataset.tabKey === key);
     }
   }
 
-  for (const [key, view] of Object.entries(VIEWS)) {
-    if (view.hideFromTopNav) continue;
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = view.label;
-    button.addEventListener("click", () =>
-      switchTab(/** @type {keyof typeof VIEWS} */ (key)),
-    );
-    navEl.append(button);
-  }
-
   appHeader.addEventListener("click", () => switchTab("home"));
 
   // Persistent bottom nav — the Coffee/Equipment/Settings tabs from the
-  // home screen sketch, kept alongside the legacy top nav row above rather
-  // than replacing it (that's a bigger IA change for a later pass).
+  // home screen sketch.
   for (const item of BOTTOM_NAV_ITEMS) {
     const button = document.createElement("button");
     button.type = "button";
