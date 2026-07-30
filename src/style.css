@@ -155,7 +155,7 @@ button {
   padding: 0;
   border-radius: 50%;
   border: 3px solid var(--color-ink);
-  background: #ffffff;
+  background: var(--color-surface);
   color: var(--color-red);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
   display: inline-flex;
@@ -203,7 +203,7 @@ button {
 
 .calendar-day.is-today {
   background: var(--color-ink);
-  color: #fff;
+  color: var(--color-surface);
   font-weight: 700;
 }
 
@@ -214,7 +214,7 @@ button {
 
 .calendar-day.is-today.has-brew {
   background: var(--color-ink);
-  color: #fff;
+  color: var(--color-surface);
   border-radius: 0.3rem;
 }
 
@@ -222,7 +222,7 @@ button {
   display: block;
   width: 100%;
   background: var(--color-red);
-  color: #fff;
+  color: var(--color-surface);
   font-weight: 700;
   font-size: 1rem;
   letter-spacing: 0.08em;
@@ -231,7 +231,7 @@ button {
   border-radius: 999px;
   padding: 0.9rem;
   margin-bottom: 2rem;
-  box-shadow: 0 4px 12px rgba(200, 32, 43, 0.35);
+  box-shadow: 0 4px 12px rgb(from var(--color-red) r g b / 0.35);
 }
 
 .brew-button:active {
