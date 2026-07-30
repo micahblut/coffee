@@ -1,7 +1,7 @@
 import { db, getBagsPageWithRatings, getRoastersRankedByRating } from "../db/db.js";
-import { renderBagForm } from "./bags.js";
+import { renderBagForm, renderBagDetail } from "./bags.js";
 import { renderRoasterForm } from "./roasters.js";
-import { CHEVRON_LEFT, CHEVRON_RIGHT } from "./home.js";
+import { renderPager } from "./pagination.js";
 
 // Both lists here are the full catalog (all bags, all roasters) rather than
 // a bounded preview — "Add bag"/"Add roaster" need to land somewhere
@@ -24,45 +24,6 @@ function formatRatingStars(rating) {
  */
 function formatBagStars(averageRating) {
   return averageRating == null ? "Not yet rated" : formatRatingStars(averageRating);
-}
-
-/**
- * Renders a Previous/Next pager into `container` — the same offset-based
- * pagination as the legacy Bag/Roaster detail pages, but with the calendar
- * nav buttons' caret styling instead of text buttons.
- * @param {HTMLElement} container
- * @param {{ offset: number, total: number, onChange: (offset: number) => void }} state
- */
-function renderPager(container, { offset, total, onChange }) {
-  container.innerHTML = "";
-  if (total <= PAGE_SIZE) return;
-
-  container.className = "coffee-pagination";
-
-  if (offset > 0) {
-    const prevButton = document.createElement("button");
-    prevButton.type = "button";
-    prevButton.className = "calendar-nav-button";
-    prevButton.setAttribute("aria-label", "Previous page");
-    prevButton.innerHTML = CHEVRON_LEFT;
-    prevButton.addEventListener("click", () => onChange(Math.max(0, offset - PAGE_SIZE)));
-    container.append(prevButton);
-  }
-
-  const status = document.createElement("span");
-  status.className = "coffee-pagination-status";
-  status.textContent = `${offset + 1}–${Math.min(offset + PAGE_SIZE, total)} of ${total}`;
-  container.append(status);
-
-  if (offset + PAGE_SIZE < total) {
-    const nextButton = document.createElement("button");
-    nextButton.type = "button";
-    nextButton.className = "calendar-nav-button";
-    nextButton.setAttribute("aria-label", "Next page");
-    nextButton.innerHTML = CHEVRON_RIGHT;
-    nextButton.addEventListener("click", () => onChange(offset + PAGE_SIZE));
-    container.append(nextButton);
-  }
 }
 
 /**
@@ -159,6 +120,7 @@ export async function renderCoffeeHome(container, nav) {
     renderPager(recentBagsPagination, {
       offset: bagsOffset,
       total,
+      pageSize: PAGE_SIZE,
       onChange: (offset) => {
         bagsOffset = offset;
         renderRecentBags();
@@ -221,6 +183,7 @@ export async function renderCoffeeHome(container, nav) {
     renderPager(topRoastersPagination, {
       offset: roastersOffset,
       total,
+      pageSize: PAGE_SIZE,
       onChange: (offset) => {
         roastersOffset = offset;
         renderTopRoasters();
@@ -250,20 +213,10 @@ export async function renderCoffeeHome(container, nav) {
     const bagId = /** @type {HTMLElement | null} */ (item)?.dataset.bagId;
     if (!bagId) return;
 
-    nav.showModal((sheet) =>
-      renderBagForm(sheet, nav, {
-        bagId,
-        isModal: true,
-        onSaved: async () => {
-          nav.hideModal();
-          await renderRecentBags();
-        },
-        onDeleted: async () => {
-          bagsOffset = 0;
-          await renderRecentBags();
-        },
-      }),
-    );
+    // A bag's full detail (freshness chart, brew history) doesn't fit a
+    // sheet, and editing/deleting lives behind its pencil icon now — so this
+    // pushes a real page (with its own Back) instead of opening a modal.
+    nav.navigate((c) => renderBagDetail(c, nav, bagId));
   });
 
   const addRoasterButton = /** @type {HTMLButtonElement} */ (

@@ -1,5 +1,5 @@
 import { db } from "./db/db.js";
-import { renderHome } from "./views/home.js";
+import { renderHome, CHEVRON_LEFT } from "./views/home.js";
 import { renderRoastersList } from "./views/roasters.js";
 import { renderBagsList } from "./views/bags.js";
 import { renderGrinders } from "./views/grinders.js";
@@ -200,9 +200,14 @@ async function main() {
   async function renderCurrent() {
     backBar.innerHTML = "";
     if (stack.length > 1) {
+      // Floated left so it sits inline with whatever heading the view
+      // renders as its first element, rather than stacking above it as its
+      // own row.
       const backButton = document.createElement("button");
       backButton.type = "button";
-      backButton.textContent = "← Back";
+      backButton.className = "back-button";
+      backButton.setAttribute("aria-label", "Back");
+      backButton.innerHTML = CHEVRON_LEFT;
       backButton.addEventListener("click", () => nav.goBack());
       backBar.append(backButton);
     }

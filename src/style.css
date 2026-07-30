@@ -83,8 +83,29 @@ form label {
   margin-bottom: 0.5rem;
 }
 
+/* Floated rather than stacked above content, so the caret sits inline with
+   the view's own heading (its first rendered element) instead of on its own
+   row above it. */
 #back-bar:not(:empty) {
-  margin-bottom: 1rem;
+  float: left;
+  margin: 0.4rem 0.5rem 0 0;
+}
+
+.back-button {
+  width: 1.75rem;
+  height: 1.75rem;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-red);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.back-button:active {
+  color: var(--color-red-dark);
 }
 
 section {
@@ -296,6 +317,7 @@ button {
 .recent-brew-main {
   display: flex;
   align-items: baseline;
+  justify-content: space-between;
   gap: 0.5rem;
 }
 
@@ -319,6 +341,12 @@ button {
   font-size: 0.7rem;
   color: var(--color-ink-soft);
   white-space: nowrap;
+}
+
+.recent-brew-meta {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-ink-soft);
 }
 
 .recent-brew-notes {
@@ -489,24 +517,149 @@ button {
   padding: 0.5rem 0;
 }
 
-.coffee-pagination {
+/* Same spacing override as the Equipment page's add-equipment button. */
+.coffee-section .brew-button-frame {
+  margin-top: 0.5rem;
+  margin-bottom: 0;
+}
+
+/* Pagination (shared)
+   ------------------------------------------------------------------ */
+
+.pagination {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-top: 0.5rem;
 }
 
-.coffee-pagination-status {
+.pagination-status {
   flex: 1;
   text-align: center;
   font-size: 0.7rem;
   color: var(--color-ink-soft);
 }
 
-/* Same spacing override as the Equipment page's add-equipment button. */
-.coffee-section .brew-button-frame {
-  margin-top: 0.5rem;
-  margin-bottom: 0;
+/* Bag detail screen
+   ------------------------------------------------------------------ */
+
+/* Same mat-behind-panel treatment as the calendar on the home screen. */
+.bag-detail-card,
+.bag-detail-chart-card {
+  background: var(--color-steel-light);
+  border: 1px solid var(--color-steel);
+  border-radius: var(--radius);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    0 8px 20px rgba(0, 0, 0, 0.08);
+  padding: 0.6rem;
+  margin-bottom: 1.5rem;
+}
+
+.bag-detail-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-steel);
+  border-radius: var(--radius);
+  box-shadow: var(--emboss-sunken);
+  padding: 0.85rem;
+}
+
+.bag-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.bag-detail-name {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.bag-detail-stars {
+  margin: 0.4rem 0 0;
+  color: var(--color-red);
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+}
+
+.bag-detail-meta {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  color: var(--color-ink-soft);
+}
+
+/* Inert for now — this is a placeholder for a future dedicated edit flow. */
+.bag-detail-edit-button {
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-red);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bag-detail-edit-button:active {
+  color: var(--color-red-dark);
+}
+
+.bag-detail-chart-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-steel);
+  border-radius: var(--radius);
+  box-shadow: var(--emboss-sunken);
+  padding: 0.75rem 0.5rem 0.5rem;
+}
+
+.bag-detail-chart-panel h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+
+.bag-detail-chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.bag-detail-chart-grid {
+  stroke: var(--color-steel);
+  stroke-width: 1;
+}
+
+.bag-detail-chart-axis {
+  stroke: var(--color-steel-dark);
+  stroke-width: 1;
+}
+
+.bag-detail-chart-tick-mark {
+  stroke: var(--color-steel-dark);
+  stroke-width: 1;
+}
+
+.bag-detail-chart-tick {
+  font-size: 0.5rem;
+  fill: var(--color-ink-soft);
+}
+
+.bag-detail-chart-axis-label {
+  font-size: 0.55rem;
+  fill: var(--color-ink-soft);
+  text-anchor: middle;
+}
+
+.bag-detail-chart-dot {
+  fill: var(--color-red);
 }
 
 /* Settings screen
