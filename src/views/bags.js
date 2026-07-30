@@ -332,14 +332,14 @@ export async function renderBagDetail(container, nav, bagId) {
   const metaLine = [bag.origin, bag.process].filter(Boolean).join(" · ");
 
   container.innerHTML = `
-    <h1>${bag.name}</h1>
+    <h1 id="bag-detail-title"></h1>
     <section class="detail-card">
       <div class="detail-panel">
         <div class="detail-header">
           <div>
-            <p class="detail-name">${bag.name}${bag.weightGrams ? ` — ${bag.weightGrams}g` : ""}</p>
+            <p class="detail-name" id="bag-detail-name"></p>
             ${averageRating != null ? `<p class="bag-detail-stars">${formatAverageRatingStars(averageRating)}</p>` : ""}
-            ${metaLine ? `<p class="bag-detail-meta">${metaLine}</p>` : ""}
+            ${metaLine ? `<p class="bag-detail-meta" id="bag-detail-meta"></p>` : ""}
           </div>
           <button type="button" id="bag-detail-edit" class="detail-edit-button" aria-label="Edit bag">${PENCIL_ICON}</button>
         </div>
@@ -368,6 +368,23 @@ export async function renderBagDetail(container, nav, bagId) {
     }
     <button type="button" id="bag-detail-delete" class="detail-delete-button">Delete bag</button>
   `;
+
+  const title = /** @type {HTMLElement} */ (
+    container.querySelector("#bag-detail-title")
+  );
+  title.textContent = bag.name;
+
+  const nameEl = /** @type {HTMLElement} */ (
+    container.querySelector("#bag-detail-name")
+  );
+  nameEl.textContent = bag.name + (bag.weightGrams ? ` — ${bag.weightGrams}g` : "");
+
+  if (metaLine) {
+    const metaEl = /** @type {HTMLElement} */ (
+      container.querySelector("#bag-detail-meta")
+    );
+    metaEl.textContent = metaLine;
+  }
 
   const editButton = /** @type {HTMLButtonElement} */ (
     container.querySelector("#bag-detail-edit")

@@ -123,19 +123,13 @@ export async function renderRoasterDetail(container, nav, roasterId) {
   const isLink = roaster.website && /^https?:\/\//i.test(roaster.website);
 
   container.innerHTML = `
-    <h1>${roaster.name}</h1>
+    <h1 id="roaster-detail-title"></h1>
     <section class="detail-card">
       <div class="detail-panel">
         <div class="detail-header">
           <div>
-            <p class="detail-name">${roaster.name}</p>
-            ${
-              roaster.website
-                ? isLink
-                  ? `<a href="${roaster.website}" target="_blank" rel="noopener noreferrer" class="coffee-item-link">${roaster.website}</a>`
-                  : `<p class="coffee-item-link">${roaster.website}</p>`
-                : ""
-            }
+            <p class="detail-name" id="roaster-detail-name"></p>
+            <div id="roaster-detail-website"></div>
           </div>
           <button type="button" id="roaster-detail-edit" class="detail-edit-button" aria-label="Edit roaster">${PENCIL_ICON}</button>
         </div>
@@ -158,6 +152,36 @@ export async function renderRoasterDetail(container, nav, roasterId) {
     }
     <button type="button" id="roaster-detail-delete" class="detail-delete-button">Delete roaster</button>
   `;
+
+  const title = /** @type {HTMLElement} */ (
+    container.querySelector("#roaster-detail-title")
+  );
+  title.textContent = roaster.name;
+
+  const nameEl = /** @type {HTMLElement} */ (
+    container.querySelector("#roaster-detail-name")
+  );
+  nameEl.textContent = roaster.name;
+
+  const websiteContainer = /** @type {HTMLElement} */ (
+    container.querySelector("#roaster-detail-website")
+  );
+  if (roaster.website) {
+    if (isLink) {
+      const link = document.createElement("a");
+      link.href = roaster.website;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.className = "coffee-item-link";
+      link.textContent = roaster.website;
+      websiteContainer.append(link);
+    } else {
+      const websiteText = document.createElement("p");
+      websiteText.className = "coffee-item-link";
+      websiteText.textContent = roaster.website;
+      websiteContainer.append(websiteText);
+    }
+  }
 
   const editButton = /** @type {HTMLButtonElement} */ (
     container.querySelector("#roaster-detail-edit")
