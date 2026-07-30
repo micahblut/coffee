@@ -4,6 +4,7 @@ import {
   getSettings,
   getRecentBags,
   getGrinderCleaningStatus,
+  getBrewerCleaningStatus,
 } from "../db/db.js";
 import {
   parseDateInputValue,
@@ -18,11 +19,13 @@ const RATINGS = [1, 2, 3, 4, 5];
 /**
  * @param {import("../models/types.js").Brew} brew
  * @param {Map<string, string>} grinderNames
+ * @param {Map<string, string>} brewerNames
  * @returns {string}
  */
-export function formatBrewDetails(brew, grinderNames) {
+export function formatBrewDetails(brew, grinderNames, brewerNames) {
   const details = [
     brew.brewDate.toLocaleDateString(),
+    `brewer: ${brewerNames.get(brew.brewerId) ?? "Unknown"}`,
     `grinder: ${grinderNames.get(brew.grinderId) ?? "Unknown"}`,
     `grind ${brew.grindSize}`,
   ];
@@ -49,16 +52,27 @@ export function formatBrewDetails(brew, grinderNames) {
  */
 export async function renderBrewForm(container, nav, options = {}) {
   const { brewId, isModal, onSaved } = options;
-  const grinders = await db.grinders.orderBy("name").toArray();
+  const [grinders, brewers] = await Promise.all([
+    db.grinders.orderBy("name").toArray(),
+    db.brewers.orderBy("name").toArray(),
+  ]);
 
-  // Unlike bags/roasters, there's no inline "+ Add new grinder" escape hatch
-  // yet (users are expected to rarely have more than one or two), so this
-  // is still a hard stop rather than a modal detour.
+  // Unlike bags/roasters, there's no inline "+ Add new grinder/brewer" escape
+  // hatch yet (users are expected to rarely have more than one or two), so
+  // this is still a hard stop rather than a modal detour.
   if (grinders.length === 0) {
     container.innerHTML = "";
     const message = document.createElement("p");
     message.textContent =
       "Add a grinder first before logging a brew (see the Grinders tab).";
+    container.append(message);
+    return;
+  }
+  if (brewers.length === 0) {
+    container.innerHTML = "";
+    const message = document.createElement("p");
+    message.textContent =
+      "Add a brewer first before logging a brew (see the Brewers tab).";
     container.append(message);
     return;
   }
@@ -72,6 +86,7 @@ export async function renderBrewForm(container, nav, options = {}) {
 
   const roasterNames = new Map(roasters.map((r) => [r.id, r.name]));
   const defaultGrinderId = settings?.defaultGrinderId;
+  const defaultBrewerId = settings?.defaultBrewerId;
 
   container.innerHTML = `
     <h1>${brewId ? "Edit brew" : "Add brew"}</h1>
@@ -81,6 +96,11 @@ export async function renderBrewForm(container, nav, options = {}) {
         <div id="recent-bags"></div>
         <select id="brew-bag" name="bagId" required></select>
         <button type="button" id="add-bag-inline">+ Add new bag</button>
+      </div>
+      <div>
+        <label for="brew-brewer">Brewer</label>
+        <select id="brew-brewer" name="brewerId" required></select>
+        <div id="brewer-cleaning-status"></div>
       </div>
       <div>
         <label for="brew-grinder">Grinder</label>
@@ -208,6 +228,31 @@ export async function renderBrewForm(container, nav, options = {}) {
   grinderSelect.addEventListener("change", renderGrinderCleaningStatus);
   await renderGrinderCleaningStatus();
 
+  const brewerSelect = /** @type {HTMLSelectElement} */ (
+    container.querySelector("#brew-brewer")
+  );
+  for (const brewer of brewers) {
+    const option = document.createElement("option");
+    option.value = brewer.id;
+    option.textContent = brewer.name;
+    brewerSelect.append(option);
+  }
+  brewerSelect.value = existing?.brewerId ?? defaultBrewerId ?? "";
+
+  const brewerCleaningStatusEl = /** @type {HTMLElement} */ (
+    container.querySelector("#brewer-cleaning-status")
+  );
+  async function renderBrewerCleaningStatus() {
+    const status = brewerSelect.value
+      ? await getBrewerCleaningStatus(brewerSelect.value)
+      : null;
+    brewerCleaningStatusEl.textContent = status
+      ? formatCleaningStatus(status)
+      : "";
+  }
+  brewerSelect.addEventListener("change", renderBrewerCleaningStatus);
+  await renderBrewerCleaningStatus();
+
   const dateInput = /** @type {HTMLInputElement} */ (
     container.querySelector("#brew-date")
   );
@@ -222,12 +267,21 @@ export async function renderBrewForm(container, nav, options = {}) {
   const doseInput = /** @type {HTMLInputElement} */ (
     container.querySelector("#brew-dose")
   );
-  doseInput.value = existing?.doseGrams != null ? String(existing.doseGrams) : "";
+  doseInput.value =
+    existing?.doseGrams != null
+      ? String(existing.doseGrams)
+      : settings?.defaultDoseGrams != null
+        ? String(settings.defaultDoseGrams)
+        : "";
   const yieldInput = /** @type {HTMLInputElement} */ (
     container.querySelector("#brew-yield")
   );
   yieldInput.value =
-    existing?.yieldGrams != null ? String(existing.yieldGrams) : "";
+    existing?.yieldGrams != null
+      ? String(existing.yieldGrams)
+      : settings?.defaultYieldGrams != null
+        ? String(settings.defaultYieldGrams)
+        : "";
   const extractionInput = /** @type {HTMLInputElement} */ (
     container.querySelector("#brew-extraction-time")
   );
@@ -236,7 +290,11 @@ export async function renderBrewForm(container, nav, options = {}) {
     container.querySelector("#brew-water-temp")
   );
   waterTempInput.value =
-    existing?.waterTempCelsius != null ? String(existing.waterTempCelsius) : "";
+    existing?.waterTempCelsius != null
+      ? String(existing.waterTempCelsius)
+      : settings?.defaultWaterTempCelsius != null
+        ? String(settings.defaultWaterTempCelsius)
+        : "";
   const ratingSelect = /** @type {HTMLSelectElement} */ (
     container.querySelector("#brew-rating")
   );
@@ -264,6 +322,7 @@ export async function renderBrewForm(container, nav, options = {}) {
     const data = new FormData(form);
     const bagId = String(data.get("bagId") ?? "");
     const grinderId = String(data.get("grinderId") ?? "");
+    const brewerId = String(data.get("brewerId") ?? "");
     const brewDate = String(data.get("brewDate") ?? "");
     const grindSize = String(data.get("grindSize") ?? "").trim();
     const doseGrams = String(data.get("doseGrams") ?? "").trim();
@@ -280,6 +339,7 @@ export async function renderBrewForm(container, nav, options = {}) {
     if (
       !bagId ||
       !grinderId ||
+      !brewerId ||
       !brewDate ||
       !grindSize ||
       !extractionTimeSeconds ||
@@ -292,6 +352,7 @@ export async function renderBrewForm(container, nav, options = {}) {
     const fields = {
       bagId,
       grinderId,
+      brewerId,
       brewDate: parseDateInputValue(brewDate),
       grindSize: Number(grindSize),
       doseGrams: doseGrams ? Number(doseGrams) : undefined,
@@ -329,13 +390,15 @@ export async function renderBrewForm(container, nav, options = {}) {
  * @param {import("../main.js").Nav} nav
  */
 export async function renderBrewsList(container, nav) {
-  const [bags, grinders, roasters] = await Promise.all([
+  const [bags, grinders, brewers, roasters] = await Promise.all([
     db.bags.toArray(),
     db.grinders.toArray(),
+    db.brewers.toArray(),
     db.roasters.toArray(),
   ]);
   const roasterNames = new Map(roasters.map((r) => [r.id, r.name]));
   const grinderNames = new Map(grinders.map((g) => [g.id, g.name]));
+  const brewerNames = new Map(brewers.map((b) => [b.id, b.name]));
   const bagsById = new Map(bags.map((b) => [b.id, b]));
 
   container.innerHTML = `
@@ -387,7 +450,7 @@ export async function renderBrewsList(container, nav) {
       title.textContent = `${bagLabel} — ${"★".repeat(brew.rating)}${"☆".repeat(5 - brew.rating)}`;
       item.append(title);
 
-      item.append(` — ${formatBrewDetails(brew, grinderNames)}`);
+      item.append(` — ${formatBrewDetails(brew, grinderNames, brewerNames)}`);
 
       if (brew.notes) {
         const notes = document.createElement("div");

@@ -294,11 +294,13 @@ export async function renderBagDetail(container, nav, bagId) {
     return;
   }
 
-  const [roaster, grinders] = await Promise.all([
+  const [roaster, grinders, brewers] = await Promise.all([
     db.roasters.get(bag.roasterId),
     db.grinders.toArray(),
+    db.brewers.toArray(),
   ]);
   const grinderNames = new Map(grinders.map((g) => [g.id, g.name]));
+  const brewerNames = new Map(brewers.map((b) => [b.id, b.name]));
 
   container.innerHTML = `
     <h1 id="bag-detail-title"></h1>
@@ -348,7 +350,7 @@ export async function renderBagDetail(container, nav, bagId) {
       rating.textContent = `${"★".repeat(brew.rating)}${"☆".repeat(5 - brew.rating)}`;
       item.append(rating);
 
-      item.append(` — ${formatBrewDetails(brew, grinderNames)}`);
+      item.append(` — ${formatBrewDetails(brew, grinderNames, brewerNames)}`);
 
       if (brew.notes) {
         const notes = document.createElement("div");

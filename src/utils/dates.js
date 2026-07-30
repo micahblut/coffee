@@ -27,3 +27,16 @@ export function dateToInputValue(date) {
 export function todayDateInputValue() {
   return dateToInputValue(new Date());
 }
+
+/**
+ * Midnight today, local time — matches the resolution of dates parsed from
+ * `<input type="date">` fields (see parseDateInputValue), so timestamps
+ * recorded "now" (e.g. marking something cleaned) compare correctly against
+ * dates a user picked from a date field instead of always looking later in
+ * the day than same-day entries.
+ * @returns {Date}
+ */
+export function startOfToday() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}

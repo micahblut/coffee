@@ -39,10 +39,25 @@
  */
 
 /**
+ * @typedef {Object} Brewer
+ * @property {string} id
+ * @property {string} name
+ * @property {Date} [lastCleanedDate]
+ * @property {number} [cleaningIntervalBrews] remind to clean after this
+ *   many brews since lastCleanedDate
+ * @property {number} [cleaningIntervalWeeks] remind to clean after this
+ *   many weeks since lastCleanedDate, as a backstop for lightly-used brewers
+ */
+
+/**
  * Singleton row (fixed id "settings") holding app-wide preferences.
  * @typedef {Object} Settings
  * @property {"settings"} id
  * @property {string} [defaultGrinderId]
+ * @property {string} [defaultBrewerId]
+ * @property {number} [defaultDoseGrams]
+ * @property {number} [defaultYieldGrams]
+ * @property {number} [defaultWaterTempCelsius]
  */
 
 /**
@@ -50,6 +65,7 @@
  * @property {string} id
  * @property {string} bagId
  * @property {string} grinderId
+ * @property {string} brewerId
  * @property {Date} brewDate
  * @property {number} grindSize
  * @property {number} [doseGrams]

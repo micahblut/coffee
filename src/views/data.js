@@ -26,7 +26,7 @@ export async function renderData(container, nav) {
     <h1>Data</h1>
     <section>
       <h2>Export</h2>
-      <p>Download all of your roasters, bags, grinders, and brews as a JSON file.</p>
+      <p>Download all of your roasters, bags, grinders, brewers, and brews as a JSON file.</p>
       <button type="button" id="export-button">Export data</button>
     </section>
     <section>
@@ -68,7 +68,7 @@ export async function renderData(container, nav) {
 
     if (
       !confirm(
-        "This replaces all roasters, bags, grinders, and brews currently stored in this browser with the contents of this file. Continue?",
+        "This replaces all roasters, bags, grinders, brewers, and brews currently stored in this browser with the contents of this file. Continue?",
       )
     ) {
       importInput.value = "";

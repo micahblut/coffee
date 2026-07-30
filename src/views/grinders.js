@@ -7,13 +7,21 @@ import {
   markGrinderCleaned,
   getGrinderCleaningStatus,
 } from "../db/db.js";
-import { parseDateInputValue, dateToInputValue } from "../utils/dates.js";
+import {
+  parseDateInputValue,
+  dateToInputValue,
+  startOfToday,
+} from "../utils/dates.js";
 
 /**
  * @param {import("../db/db.js").CleaningStatus} status
  * @returns {string}
  */
 export function formatCleaningStatus(status) {
+  // amount is 0 exactly when usage/age has hit the interval right on the
+  // nose (neither past it nor short of it), which the "overdue" branch
+  // otherwise reports as a confusing "0 grinds overdue for a clean".
+  if (status.amount === 0) return "Due for a clean";
   return status.level === "overdue"
     ? `${status.amount} ${status.metric} overdue for a clean`
     : `Cleaning due in ${status.amount} ${status.metric}`;
@@ -112,7 +120,7 @@ export async function renderGrinders(container, nav) {
       lastCleanedDate: lastCleanedDate
         ? parseDateInputValue(lastCleanedDate)
         : hasInterval && !existing?.lastCleanedDate
-          ? new Date()
+          ? startOfToday()
           : existing?.lastCleanedDate,
       cleaningIntervalGrinds: cleaningIntervalGrinds
         ? Number(cleaningIntervalGrinds)
@@ -162,12 +170,6 @@ export async function renderGrinders(container, nav) {
       return;
     }
 
-    if (target.dataset.makeDefaultId) {
-      await setDefaultGrinderId(target.dataset.makeDefaultId);
-      await renderList();
-      return;
-    }
-
     if (target.dataset.markCleanedId) {
       await markGrinderCleaned(target.dataset.markCleanedId);
       await renderList();
@@ -211,15 +213,8 @@ export async function renderGrinders(container, nav) {
         item.append(statusEl);
       }
 
-      item.append(" — ");
       if (grinder.id === defaultGrinderId) {
-        item.append("default");
-      } else {
-        const defaultButton = document.createElement("button");
-        defaultButton.type = "button";
-        defaultButton.textContent = "Make default";
-        defaultButton.dataset.makeDefaultId = grinder.id;
-        item.append(defaultButton);
+        item.append(" — default");
       }
 
       item.append(" — ");

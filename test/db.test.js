@@ -6,8 +6,11 @@ import {
   db,
   newId,
   getSettings,
+  updateSettings,
   setDefaultGrinderId,
+  setDefaultBrewerId,
   deleteGrinder,
+  deleteBrewer,
   getRecentBags,
   getBagsForRoaster,
   countBagsForRoaster,
@@ -15,10 +18,13 @@ import {
   countBrewsForBag,
   getBrewDatesInMonth,
   markGrinderCleaned,
+  markBrewerCleaned,
   getGrinderCleaningStatus,
+  getBrewerCleaningStatus,
   exportAllData,
   importAllData,
 } from "../src/db/db.js";
+import { startOfToday } from "../src/utils/dates.js";
 
 const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 
@@ -27,6 +33,7 @@ beforeEach(async () => {
     db.roasters.clear(),
     db.bags.clear(),
     db.grinders.clear(),
+    db.brewers.clear(),
     db.brews.clear(),
     db.settings.clear(),
   ]);
@@ -61,6 +68,15 @@ async function addBag(roasterId, overrides = {}) {
 }
 
 /**
+ * @param {Partial<import("../src/models/types.js").Brewer>} [overrides]
+ */
+async function addBrewer(overrides = {}) {
+  const brewer = { id: newId(), name: "Test Brewer", ...overrides };
+  await db.brewers.add(brewer);
+  return brewer;
+}
+
+/**
  * @param {string} bagId
  * @param {string} grinderId
  * @param {Partial<import("../src/models/types.js").Brew>} [overrides]
@@ -71,6 +87,10 @@ async function addBrew(bagId, grinderId, overrides = {}) {
     id: newId(),
     bagId,
     grinderId,
+    // Most tests here exercise grinder/bag/pagination logic and don't care
+    // which brewer was used, so default to a fresh id rather than making
+    // every call site pass one explicitly.
+    brewerId: newId(),
     brewDate: new Date(2026, 0, 1),
     createdAt: new Date(2026, 0, 1),
     grindSize: 20,
@@ -259,7 +279,7 @@ test("getGrinderCleaningStatus stays quiet when neither interval is close", asyn
   assert.equal(await getGrinderCleaningStatus(grinder.id), null);
 });
 
-test("getGrinderCleaningStatus lets the weeks backstop take over for a lightly-used grinder", async () => {
+test("getGrinderCleaningStatus lets the weeks backstop (converted to days) take over for a lightly-used grinder", async () => {
   const roaster = await addRoaster();
   const bag = await addBag(roaster.id);
   const grinder = {
@@ -274,10 +294,10 @@ test("getGrinderCleaningStatus lets the weeks backstop take over for a lightly-u
 
   const status = await getGrinderCleaningStatus(grinder.id);
   assert.equal(status?.level, "due-soon");
-  assert.equal(status?.metric, "weeks");
+  assert.equal(status?.metric, "days");
 });
 
-test("getGrinderCleaningStatus works with only a weeks interval configured", async () => {
+test("getGrinderCleaningStatus works with only a weeks interval configured, reporting in days", async () => {
   const grinder = {
     id: newId(),
     name: "G",
@@ -288,11 +308,33 @@ test("getGrinderCleaningStatus works with only a weeks interval configured", asy
 
   const status = await getGrinderCleaningStatus(grinder.id);
   assert.equal(status?.level, "overdue");
-  assert.equal(status?.metric, "weeks");
-  assert.equal(status?.amount, 2);
+  assert.equal(status?.metric, "days");
+  assert.equal(status?.amount, 14); // 2 weeks overdue, expressed in days
 });
 
-test("markGrinderCleaned resets lastCleanedDate to now", async () => {
+test("getGrinderCleaningStatus counts a brew logged the same day the grinder was marked cleaned", async () => {
+  // markGrinderCleaned and brewDate must agree on granularity (both
+  // midnight-normalized) — otherwise a same-day brew's midnight timestamp
+  // would fall before a "cleaned" timestamp stamped later that same day,
+  // and get silently excluded from the grind count.
+  const roaster = await addRoaster();
+  const bag = await addBag(roaster.id);
+  const grinder = {
+    id: newId(),
+    name: "G",
+    cleaningIntervalGrinds: 1,
+  };
+  await db.grinders.add(grinder);
+
+  await markGrinderCleaned(grinder.id);
+  await addBrew(bag.id, grinder.id, { brewDate: startOfToday() });
+  await addBrew(bag.id, grinder.id, { brewDate: startOfToday() });
+
+  const status = await getGrinderCleaningStatus(grinder.id);
+  assert.deepEqual(status, { level: "overdue", metric: "grinds", amount: 1 });
+});
+
+test("markGrinderCleaned resets lastCleanedDate to the start of today", async () => {
   const grinder = {
     id: newId(),
     name: "G",
@@ -300,14 +342,10 @@ test("markGrinderCleaned resets lastCleanedDate to now", async () => {
   };
   await db.grinders.add(grinder);
 
-  const before = Date.now();
   await markGrinderCleaned(grinder.id);
-  const after = Date.now();
 
   const updated = await db.grinders.get(grinder.id);
-  assert.ok(updated?.lastCleanedDate);
-  const time = /** @type {Date} */ (updated?.lastCleanedDate).getTime();
-  assert.ok(time >= before && time <= after);
+  assert.equal(updated?.lastCleanedDate?.getTime(), startOfToday().getTime());
 });
 
 test("deleteGrinder reassigns the default to another grinder when the default is deleted", async () => {
@@ -333,6 +371,134 @@ test("deleteGrinder clears the default when no grinders remain", async () => {
   assert.equal(settings?.defaultGrinderId, undefined);
 });
 
+test("updateSettings merges fields instead of overwriting the whole settings row", async () => {
+  await setDefaultGrinderId("grinder-1");
+  await updateSettings({ defaultDoseGrams: 18 });
+  await updateSettings({ defaultYieldGrams: 36 });
+
+  const settings = await getSettings();
+  assert.equal(settings?.defaultGrinderId, "grinder-1");
+  assert.equal(settings?.defaultDoseGrams, 18);
+  assert.equal(settings?.defaultYieldGrams, 36);
+});
+
+test("getBrewerCleaningStatus reports due-soon by brew count once past the warn threshold", async () => {
+  const roaster = await addRoaster();
+  const bag = await addBag(roaster.id);
+  const brewer = {
+    id: newId(),
+    name: "B",
+    lastCleanedDate: new Date(2026, 0, 1),
+    cleaningIntervalBrews: 10,
+  };
+  await db.brewers.add(brewer);
+  for (let i = 0; i < 9; i++) {
+    await addBrew(bag.id, newId(), {
+      brewerId: brewer.id,
+      brewDate: new Date(2026, 0, 2 + i),
+    });
+  }
+
+  const status = await getBrewerCleaningStatus(brewer.id);
+  assert.deepEqual(status, { level: "due-soon", metric: "brews", amount: 1 });
+});
+
+test("getBrewerCleaningStatus reports overdue by brew count past the limit", async () => {
+  const roaster = await addRoaster();
+  const bag = await addBag(roaster.id);
+  const brewer = {
+    id: newId(),
+    name: "B",
+    lastCleanedDate: new Date(2026, 0, 1),
+    cleaningIntervalBrews: 10,
+  };
+  await db.brewers.add(brewer);
+  for (let i = 0; i < 13; i++) {
+    await addBrew(bag.id, newId(), {
+      brewerId: brewer.id,
+      brewDate: new Date(2026, 0, 2 + i),
+    });
+  }
+
+  const status = await getBrewerCleaningStatus(brewer.id);
+  assert.deepEqual(status, { level: "overdue", metric: "brews", amount: 3 });
+});
+
+test("getBrewerCleaningStatus lets the weeks backstop (converted to days) take over for a lightly-used brewer", async () => {
+  const roaster = await addRoaster();
+  const bag = await addBag(roaster.id);
+  const brewer = {
+    id: newId(),
+    name: "B",
+    lastCleanedDate: new Date(Date.now() - 3.9 * MS_PER_WEEK),
+    cleaningIntervalBrews: 1000,
+    cleaningIntervalWeeks: 4,
+  };
+  await db.brewers.add(brewer);
+  await addBrew(bag.id, newId(), { brewerId: brewer.id, brewDate: new Date() });
+
+  const status = await getBrewerCleaningStatus(brewer.id);
+  assert.equal(status?.level, "due-soon");
+  assert.equal(status?.metric, "days");
+});
+
+test("getBrewerCleaningStatus counts a brew logged the same day the brewer was marked cleaned", async () => {
+  const roaster = await addRoaster();
+  const bag = await addBag(roaster.id);
+  const brewer = { id: newId(), name: "B", cleaningIntervalBrews: 1 };
+  await db.brewers.add(brewer);
+
+  await markBrewerCleaned(brewer.id);
+  await addBrew(bag.id, newId(), {
+    brewerId: brewer.id,
+    brewDate: startOfToday(),
+  });
+  await addBrew(bag.id, newId(), {
+    brewerId: brewer.id,
+    brewDate: startOfToday(),
+  });
+
+  const status = await getBrewerCleaningStatus(brewer.id);
+  assert.deepEqual(status, { level: "overdue", metric: "brews", amount: 1 });
+});
+
+test("markBrewerCleaned resets lastCleanedDate to the start of today", async () => {
+  const brewer = {
+    id: newId(),
+    name: "B",
+    lastCleanedDate: new Date(2020, 0, 1),
+  };
+  await db.brewers.add(brewer);
+
+  await markBrewerCleaned(brewer.id);
+
+  const updated = await db.brewers.get(brewer.id);
+  assert.equal(updated?.lastCleanedDate?.getTime(), startOfToday().getTime());
+});
+
+test("deleteBrewer reassigns the default to another brewer when the default is deleted", async () => {
+  const a = await addBrewer({ name: "Brewer A" });
+  const b = await addBrewer({ name: "Brewer B" });
+  await setDefaultBrewerId(a.id);
+
+  await deleteBrewer(a.id);
+
+  const settings = await getSettings();
+  assert.equal(settings?.defaultBrewerId, b.id);
+});
+
+test("deleteBrewer clears the default when no brewers remain, without touching other settings", async () => {
+  const a = await addBrewer({ name: "Brewer A" });
+  await setDefaultGrinderId("grinder-1");
+  await setDefaultBrewerId(a.id);
+
+  await deleteBrewer(a.id);
+
+  const settings = await getSettings();
+  assert.equal(settings?.defaultBrewerId, undefined);
+  assert.equal(settings?.defaultGrinderId, "grinder-1");
+});
+
 test("exportAllData / importAllData round-trips all tables and Date fields", async () => {
   const roaster = await addRoaster();
   const bag = await addBag(roaster.id, {
@@ -344,8 +510,16 @@ test("exportAllData / importAllData round-trips all tables and Date fields", asy
     lastCleanedDate: new Date(2026, 5, 1),
   };
   await db.grinders.add(grinder);
-  await addBrew(bag.id, grinder.id, { brewDate: new Date(2026, 5, 20) });
+  const brewer = await addBrewer({
+    name: "Brewer",
+    lastCleanedDate: new Date(2026, 5, 1),
+  });
+  await addBrew(bag.id, grinder.id, {
+    brewerId: brewer.id,
+    brewDate: new Date(2026, 5, 20),
+  });
   await setDefaultGrinderId(grinder.id);
+  await setDefaultBrewerId(brewer.id);
 
   const exported = await exportAllData();
 
@@ -356,19 +530,22 @@ test("exportAllData / importAllData round-trips all tables and Date fields", asy
     db.roasters.clear(),
     db.bags.clear(),
     db.grinders.clear(),
+    db.brewers.clear(),
     db.brews.clear(),
     db.settings.clear(),
   ]);
 
   await importAllData(reparsed);
 
-  const [roasters, bags, grinders, brews, settings] = await Promise.all([
-    db.roasters.toArray(),
-    db.bags.toArray(),
-    db.grinders.toArray(),
-    db.brews.toArray(),
-    getSettings(),
-  ]);
+  const [roasters, bags, grinders, brewers, brews, settings] =
+    await Promise.all([
+      db.roasters.toArray(),
+      db.bags.toArray(),
+      db.grinders.toArray(),
+      db.brewers.toArray(),
+      db.brews.toArray(),
+      getSettings(),
+    ]);
 
   assert.equal(roasters.length, 1);
   assert.equal(bags.length, 1);
@@ -376,8 +553,11 @@ test("exportAllData / importAllData round-trips all tables and Date fields", asy
   assert.equal(bags[0].roastDate.getTime(), bag.roastDate.getTime());
   assert.equal(grinders.length, 1);
   assert.ok(grinders[0].lastCleanedDate instanceof Date);
+  assert.equal(brewers.length, 1);
+  assert.ok(brewers[0].lastCleanedDate instanceof Date);
   assert.equal(brews.length, 1);
   assert.ok(brews[0].brewDate instanceof Date);
+  assert.equal(settings?.defaultBrewerId, brewer.id);
   assert.equal(settings?.defaultGrinderId, grinder.id);
 });
 

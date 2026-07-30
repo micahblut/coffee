@@ -1,9 +1,11 @@
 import Dexie from "../vendor/dexie.mjs";
+import { startOfToday } from "../utils/dates.js";
 
 /**
  * @typedef {import("../models/types.js").Roaster} Roaster
  * @typedef {import("../models/types.js").Bag} Bag
  * @typedef {import("../models/types.js").Grinder} Grinder
+ * @typedef {import("../models/types.js").Brewer} Brewer
  * @typedef {import("../models/types.js").Brew} Brew
  * @typedef {import("../models/types.js").Settings} Settings
  */
@@ -12,6 +14,7 @@ export const db = /** @type {Dexie & {
  *   roasters: import("../vendor/dexie.d.mts").EntityTable<Roaster, "id">,
  *   bags: import("../vendor/dexie.d.mts").EntityTable<Bag, "id">,
  *   grinders: import("../vendor/dexie.d.mts").EntityTable<Grinder, "id">,
+ *   brewers: import("../vendor/dexie.d.mts").EntityTable<Brewer, "id">,
  *   brews: import("../vendor/dexie.d.mts").EntityTable<Brew, "id">,
  *   settings: import("../vendor/dexie.d.mts").EntityTable<Settings, "id">,
  * }} */ (new Dexie("caffe"));
@@ -54,6 +57,15 @@ db.version(3).stores({
   settings: "id",
 });
 
+db.version(4).stores({
+  roasters: "id, name",
+  bags: "id, roasterId, roastDate, type, createdAt, [roasterId+roastDate]",
+  grinders: "id, name",
+  brewers: "id, name",
+  brews: "id, bagId, grinderId, brewerId, brewDate, rating, [bagId+brewDate]",
+  settings: "id",
+});
+
 /**
  * Generates a client-side id for a new record. Using client-generated ids
  * (rather than autoincrement) means local records can sync to a future
@@ -74,10 +86,28 @@ export async function getSettings() {
 }
 
 /**
- * @param {string} grinderId
+ * Merges the given fields into the singleton settings row. `db.settings.put`
+ * overwrites the whole row, so this reads the current row first — otherwise
+ * setting one default (e.g. dose) would wipe out the others (e.g. grinder).
+ * @param {Partial<Settings>} fields
+ */
+export async function updateSettings(fields) {
+  const current = await db.settings.get(SETTINGS_ID);
+  await db.settings.put({ ...current, id: SETTINGS_ID, ...fields });
+}
+
+/**
+ * @param {string | undefined} grinderId
  */
 export async function setDefaultGrinderId(grinderId) {
-  await db.settings.put({ id: SETTINGS_ID, defaultGrinderId: grinderId });
+  await updateSettings({ defaultGrinderId: grinderId });
+}
+
+/**
+ * @param {string | undefined} brewerId
+ */
+export async function setDefaultBrewerId(brewerId) {
+  await updateSettings({ defaultBrewerId: brewerId });
 }
 
 /**
@@ -198,6 +228,7 @@ const EXPORT_VERSION = 1;
  * @property {string} exportedAt
  * @property {Settings[]} settings
  * @property {Grinder[]} grinders
+ * @property {Brewer[]} brewers
  * @property {Roaster[]} roasters
  * @property {Bag[]} bags
  * @property {Brew[]} brews
@@ -207,19 +238,22 @@ const EXPORT_VERSION = 1;
  * @returns {Promise<ExportedData>}
  */
 export async function exportAllData() {
-  const [settings, grinders, roasters, bags, brews] = await Promise.all([
-    db.settings.toArray(),
-    db.grinders.toArray(),
-    db.roasters.toArray(),
-    db.bags.toArray(),
-    db.brews.toArray(),
-  ]);
+  const [settings, grinders, brewers, roasters, bags, brews] =
+    await Promise.all([
+      db.settings.toArray(),
+      db.grinders.toArray(),
+      db.brewers.toArray(),
+      db.roasters.toArray(),
+      db.bags.toArray(),
+      db.brews.toArray(),
+    ]);
 
   return {
     exportVersion: EXPORT_VERSION,
     exportedAt: new Date().toISOString(),
     settings,
     grinders,
+    brewers,
     roasters,
     bags,
     brews,
@@ -259,21 +293,19 @@ export async function importAllData(data) {
   const roasters = parsed.roasters ?? [];
   const bags = reviveDates(parsed.bags ?? [], ["roastDate", "createdAt"]);
   const grinders = reviveDates(parsed.grinders ?? [], ["lastCleanedDate"]);
+  const brewers = reviveDates(parsed.brewers ?? [], ["lastCleanedDate"]);
   const brews = reviveDates(parsed.brews ?? [], ["brewDate", "createdAt"]);
   const settings = parsed.settings ?? [];
 
   await db.transaction(
     "rw",
-    db.roasters,
-    db.bags,
-    db.grinders,
-    db.brews,
-    db.settings,
+    [db.roasters, db.bags, db.grinders, db.brewers, db.brews, db.settings],
     async () => {
       await Promise.all([
         db.roasters.clear(),
         db.bags.clear(),
         db.grinders.clear(),
+        db.brewers.clear(),
         db.brews.clear(),
         db.settings.clear(),
       ]);
@@ -281,6 +313,7 @@ export async function importAllData(data) {
         db.roasters.bulkAdd(roasters),
         db.bags.bulkAdd(bags),
         db.grinders.bulkAdd(grinders),
+        db.brewers.bulkAdd(brewers),
         db.brews.bulkAdd(brews),
         db.settings.bulkAdd(settings),
       ]);
@@ -302,7 +335,31 @@ export async function deleteGrinder(grinderId) {
     if (settings?.defaultGrinderId !== grinderId) return;
 
     const nextDefault = await db.grinders.orderBy("name").first();
-    await db.settings.put({ id: SETTINGS_ID, defaultGrinderId: nextDefault?.id });
+    await db.settings.put({
+      ...settings,
+      defaultGrinderId: nextDefault?.id,
+    });
+  });
+}
+
+/**
+ * Deletes a brewer. If it was the default, reassigns the default to another
+ * remaining brewer (or clears it, if none are left) so settings never point
+ * to a deleted brewer.
+ * @param {string} brewerId
+ */
+export async function deleteBrewer(brewerId) {
+  await db.transaction("rw", db.brewers, db.settings, async () => {
+    await db.brewers.delete(brewerId);
+
+    const settings = await db.settings.get(SETTINGS_ID);
+    if (settings?.defaultBrewerId !== brewerId) return;
+
+    const nextDefault = await db.brewers.orderBy("name").first();
+    await db.settings.put({
+      ...settings,
+      defaultBrewerId: nextDefault?.id,
+    });
   });
 }
 
@@ -310,26 +367,38 @@ export async function deleteGrinder(grinderId) {
  * @param {string} grinderId
  */
 export async function markGrinderCleaned(grinderId) {
-  await db.grinders.update(grinderId, { lastCleanedDate: new Date() });
+  await db.grinders.update(grinderId, { lastCleanedDate: startOfToday() });
 }
 
-const CLEANING_DUE_SOON_RATIO = 0.8;
-const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
+/**
+ * @param {string} brewerId
+ */
+export async function markBrewerCleaned(brewerId) {
+  await db.brewers.update(brewerId, { lastCleanedDate: startOfToday() });
+}
+
+const CLEANING_DUE_SOON_RATIO = 0.9;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const DAYS_PER_WEEK = 7;
 
 /**
  * @typedef {Object} CleaningStatus
  * @property {"due-soon" | "overdue"} level
- * @property {"grinds" | "weeks"} metric
+ * @property {"grinds" | "brews" | "days"} metric
  * @property {number} amount Non-negative — remaining (due-soon) or overage (overdue).
  */
 
 /**
  * Checks whether a grinder is due (or overdue) for cleaning, based on
- * whichever configured interval — grind count or elapsed weeks — is
+ * whichever configured interval — grind count or elapsed time — is
  * proportionally closer to its limit. This mirrors a "whichever comes
  * first" maintenance schedule (like a car's oil-change interval): grind
  * count is the primary signal, elapsed time is a backstop for grinders
- * that see light use but still accumulate residue over time.
+ * that see light use but still accumulate residue over time. The interval
+ * is entered (and stored) in weeks for easy data entry, but the ratio and
+ * remaining/overage amount are computed in days for a more granular signal
+ * than whole weeks would give (e.g. "due in 3 days" instead of "due in 1
+ * week").
  * @param {string} grinderId
  * @returns {Promise<CleaningStatus | null>} null if no interval is
  *   configured, lastCleanedDate is unset, or it isn't due soon yet.
@@ -350,22 +419,21 @@ export async function getGrinderCleaningStatus(grinderId) {
     .equals(grinderId)
     .and((brew) => brew.brewDate >= lastCleanedDate)
     .count();
-  const weeksSinceClean =
-    (Date.now() - lastCleanedDate.getTime()) / MS_PER_WEEK;
+  const daysSinceClean = (Date.now() - lastCleanedDate.getTime()) / MS_PER_DAY;
 
   const grindsRatio =
     grinder.cleaningIntervalGrinds != null
       ? grindsSinceClean / grinder.cleaningIntervalGrinds
       : -Infinity;
-  const weeksRatio =
+  const daysRatio =
     grinder.cleaningIntervalWeeks != null
-      ? weeksSinceClean / grinder.cleaningIntervalWeeks
+      ? daysSinceClean / (grinder.cleaningIntervalWeeks * DAYS_PER_WEEK)
       : -Infinity;
 
-  if (Math.max(grindsRatio, weeksRatio) < CLEANING_DUE_SOON_RATIO) return null;
+  if (Math.max(grindsRatio, daysRatio) < CLEANING_DUE_SOON_RATIO) return null;
 
-  if (grindsRatio >= weeksRatio) {
-    // grindsRatio can only win a comparison against a finite weeksRatio (or
+  if (grindsRatio >= daysRatio) {
+    // grindsRatio can only win a comparison against a finite daysRatio (or
     // -Infinity) by itself being finite, which means cleaningIntervalGrinds
     // must be set — the ratio computation above already proved this.
     const interval = /** @type {number} */ (grinder.cleaningIntervalGrinds);
@@ -375,9 +443,66 @@ export async function getGrinderCleaningStatus(grinderId) {
       : { level: "overdue", metric: "grinds", amount: -remaining };
   }
 
-  const weeksInterval = /** @type {number} */ (grinder.cleaningIntervalWeeks);
-  const remainingWeeks = weeksInterval - weeksSinceClean;
-  return remainingWeeks > 0
-    ? { level: "due-soon", metric: "weeks", amount: Math.ceil(remainingWeeks) }
-    : { level: "overdue", metric: "weeks", amount: Math.round(-remainingWeeks) };
+  const intervalDays =
+    /** @type {number} */ (grinder.cleaningIntervalWeeks) * DAYS_PER_WEEK;
+  const remainingDays = intervalDays - daysSinceClean;
+  return remainingDays > 0
+    ? { level: "due-soon", metric: "days", amount: Math.ceil(remainingDays) }
+    : { level: "overdue", metric: "days", amount: Math.round(-remainingDays) };
+}
+
+/**
+ * Checks whether a brewer is due (or overdue) for cleaning. Mirrors
+ * getGrinderCleaningStatus above — brew count is the primary signal,
+ * elapsed time is a backstop for brewers that see light use.
+ * @param {string} brewerId
+ * @returns {Promise<CleaningStatus | null>} null if no interval is
+ *   configured, lastCleanedDate is unset, or it isn't due soon yet.
+ */
+export async function getBrewerCleaningStatus(brewerId) {
+  const brewer = await db.brewers.get(brewerId);
+  if (!brewer?.lastCleanedDate) return null;
+  if (
+    brewer.cleaningIntervalBrews == null &&
+    brewer.cleaningIntervalWeeks == null
+  ) {
+    return null;
+  }
+
+  const lastCleanedDate = brewer.lastCleanedDate;
+  const brewsSinceClean = await db.brews
+    .where("brewerId")
+    .equals(brewerId)
+    .and((brew) => brew.brewDate >= lastCleanedDate)
+    .count();
+  const daysSinceClean = (Date.now() - lastCleanedDate.getTime()) / MS_PER_DAY;
+
+  const brewsRatio =
+    brewer.cleaningIntervalBrews != null
+      ? brewsSinceClean / brewer.cleaningIntervalBrews
+      : -Infinity;
+  const daysRatio =
+    brewer.cleaningIntervalWeeks != null
+      ? daysSinceClean / (brewer.cleaningIntervalWeeks * DAYS_PER_WEEK)
+      : -Infinity;
+
+  if (Math.max(brewsRatio, daysRatio) < CLEANING_DUE_SOON_RATIO) return null;
+
+  if (brewsRatio >= daysRatio) {
+    // brewsRatio can only win a comparison against a finite daysRatio (or
+    // -Infinity) by itself being finite, which means cleaningIntervalBrews
+    // must be set — the ratio computation above already proved this.
+    const interval = /** @type {number} */ (brewer.cleaningIntervalBrews);
+    const remaining = interval - brewsSinceClean;
+    return remaining > 0
+      ? { level: "due-soon", metric: "brews", amount: remaining }
+      : { level: "overdue", metric: "brews", amount: -remaining };
+  }
+
+  const intervalDays =
+    /** @type {number} */ (brewer.cleaningIntervalWeeks) * DAYS_PER_WEEK;
+  const remainingDays = intervalDays - daysSinceClean;
+  return remainingDays > 0
+    ? { level: "due-soon", metric: "days", amount: Math.ceil(remainingDays) }
+    : { level: "overdue", metric: "days", amount: Math.round(-remainingDays) };
 }
