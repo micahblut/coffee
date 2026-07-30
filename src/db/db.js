@@ -1,5 +1,5 @@
 import Dexie from "../vendor/dexie.mjs";
-import { startOfToday } from "../utils/dates.js";
+import { startOfToday, startOfDay } from "../utils/dates.js";
 
 /**
  * @typedef {import("../models/types.js").Roaster} Roaster
@@ -218,6 +218,21 @@ export async function getBrewDatesInMonth(year, monthIndex) {
     .between(start, end, true, false)
     .toArray();
   return new Set(brews.map((brew) => brew.brewDate.getDate()));
+}
+
+/**
+ * Brews logged on a specific calendar day, most recently logged first.
+ * @param {Date} date
+ * @returns {Promise<Brew[]>}
+ */
+export async function getBrewsForDate(date) {
+  const start = startOfDay(date);
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1);
+  const brews = await db.brews
+    .where("brewDate")
+    .between(start, end, true, false)
+    .toArray();
+  return brews.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
 const EXPORT_VERSION = 1;

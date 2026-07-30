@@ -1,5 +1,5 @@
 import { getBrewDatesInMonth } from "../db/db.js";
-import { renderBrewForm } from "./brews.js";
+import { renderBrewForm, renderBrewsForDate } from "./brews.js";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -74,12 +74,22 @@ export async function renderHome(container, nav) {
       const cell = document.createElement("div");
       cell.className = "calendar-day";
       cell.textContent = String(day);
+      cell.dataset.day = String(day);
       if (brewDates.has(day)) cell.classList.add("has-brew");
       if (isCurrentMonth && day === today.getDate()) {
         cell.classList.add("is-today");
       }
       grid.append(cell);
     }
+
+    grid.addEventListener("click", (event) => {
+      const target = /** @type {HTMLElement} */ (event.target);
+      const day = target.dataset.day;
+      if (!day) return;
+      nav.navigate((c) =>
+        renderBrewsForDate(c, nav, new Date(year, month, Number(day))),
+      );
+    });
 
     const prevButton = /** @type {HTMLButtonElement} */ (
       calendar.querySelector("#calendar-prev")

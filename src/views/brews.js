@@ -3,6 +3,7 @@ import {
   newId,
   getSettings,
   getRecentBags,
+  getBrewsForDate,
   getGrinderCleaningStatus,
   getBrewerCleaningStatus,
 } from "../db/db.js";
@@ -477,4 +478,63 @@ export async function renderBrewsList(container, nav) {
   }
 
   await renderList();
+}
+
+/**
+ * Read-only list of the brews logged on a single calendar day — surfaced by
+ * selecting a date on the home page calendar.
+ * @param {HTMLElement} container
+ * @param {import("../main.js").Nav} nav
+ * @param {Date} date
+ */
+export async function renderBrewsForDate(container, nav, date) {
+  const [brews, bags, grinders, brewers, roasters] = await Promise.all([
+    getBrewsForDate(date),
+    db.bags.toArray(),
+    db.grinders.toArray(),
+    db.brewers.toArray(),
+    db.roasters.toArray(),
+  ]);
+  const roasterNames = new Map(roasters.map((r) => [r.id, r.name]));
+  const grinderNames = new Map(grinders.map((g) => [g.id, g.name]));
+  const brewerNames = new Map(brewers.map((b) => [b.id, b.name]));
+  const bagsById = new Map(bags.map((b) => [b.id, b]));
+
+  container.innerHTML = `
+    <h1>${date.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</h1>
+    <ul id="day-brew-list"></ul>
+  `;
+
+  const list = /** @type {HTMLUListElement} */ (
+    container.querySelector("#day-brew-list")
+  );
+
+  if (brews.length === 0) {
+    const empty = document.createElement("li");
+    empty.textContent = "No brews logged on this day.";
+    list.append(empty);
+    return;
+  }
+
+  for (const brew of brews) {
+    const item = document.createElement("li");
+    const bag = bagsById.get(brew.bagId);
+    const bagLabel = bag
+      ? `${bag.name} — ${roasterNames.get(bag.roasterId) ?? "Unknown roaster"}`
+      : "Unknown bag";
+
+    const title = document.createElement("strong");
+    title.textContent = `${bagLabel} — ${"★".repeat(brew.rating)}${"☆".repeat(5 - brew.rating)}`;
+    item.append(title);
+
+    item.append(` — ${formatBrewDetails(brew, grinderNames, brewerNames)}`);
+
+    if (brew.notes) {
+      const notes = document.createElement("div");
+      notes.textContent = brew.notes;
+      item.append(notes);
+    }
+
+    list.append(item);
+  }
 }

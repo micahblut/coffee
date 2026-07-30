@@ -65,6 +65,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
 }
 
 .calendar-day.is-today {

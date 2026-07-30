@@ -17,6 +17,7 @@ import {
   getBrewsForBag,
   countBrewsForBag,
   getBrewDatesInMonth,
+  getBrewsForDate,
   markGrinderCleaned,
   markBrewerCleaned,
   getGrinderCleaningStatus,
@@ -190,6 +191,30 @@ test("getBrewDatesInMonth returns the set of days with a logged brew, excluding 
 
   const days = await getBrewDatesInMonth(2026, 5);
   assert.deepEqual([...days].sort((a, b) => a - b), [3, 15]);
+});
+
+test("getBrewsForDate returns only brews logged on that calendar day, most recent first", async () => {
+  const roaster = await addRoaster();
+  const bag = await addBag(roaster.id);
+  const grinder = { id: newId(), name: "Grinder" };
+  await db.grinders.add(grinder);
+
+  const first = await addBrew(bag.id, grinder.id, {
+    brewDate: new Date(2026, 5, 3),
+    createdAt: new Date(2026, 5, 3, 8),
+  });
+  const second = await addBrew(bag.id, grinder.id, {
+    brewDate: new Date(2026, 5, 3),
+    createdAt: new Date(2026, 5, 3, 9),
+  });
+  await addBrew(bag.id, grinder.id, { brewDate: new Date(2026, 5, 4) }); // next day
+  await addBrew(bag.id, grinder.id, { brewDate: new Date(2026, 5, 2) }); // previous day
+
+  const brews = await getBrewsForDate(new Date(2026, 5, 3));
+  assert.deepEqual(
+    brews.map((b) => b.id),
+    [second.id, first.id],
+  );
 });
 
 test("getGrinderCleaningStatus returns null when no interval is configured", async () => {
