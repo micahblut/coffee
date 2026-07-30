@@ -237,7 +237,8 @@ export async function renderBagsList(container, nav) {
     const deleteId = target.dataset.deleteId;
     if (!deleteId) return;
 
-    if (!confirm("Delete this bag?")) return;
+    if (!(await nav.confirm("Delete this bag?", { confirmLabel: "Delete" })))
+      return;
     await db.bags.delete(deleteId);
     await renderList();
   });

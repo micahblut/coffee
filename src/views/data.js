@@ -66,11 +66,11 @@ export async function renderData(container, nav) {
       return;
     }
 
-    if (
-      !confirm(
-        "This replaces all roasters, bags, grinders, brewers, and brews currently stored in this browser with the contents of this file. Continue?",
-      )
-    ) {
+    const shouldImport = await nav.confirm(
+      "This replaces all roasters, bags, grinders, brewers, and brews currently stored in this browser with the contents of this file. Continue?",
+      { confirmLabel: "Continue" },
+    );
+    if (!shouldImport) {
       importInput.value = "";
       return;
     }

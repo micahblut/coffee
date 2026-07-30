@@ -77,6 +77,7 @@ export function newId() {
 }
 
 const SETTINGS_ID = "settings";
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
  * @returns {Promise<Settings | undefined>}
@@ -179,6 +180,56 @@ export async function countBagsForRoaster(roasterId) {
 }
 
 /**
+ * @typedef {Object} RatedBag
+ * @property {Bag} bag
+ * @property {number} averageRating
+ * @property {number} brewCount
+ */
+
+/**
+ * A roaster's bags ranked by average brew rating, highest first. Bags with
+ * fewer than `minBrews` brews are excluded — a bag with one 5-star brew
+ * isn't meaningfully "best rated" next to one with twenty brews averaging
+ * 4.8, and a bag's first brew or two are often still-dialing-in test shots
+ * rather than a fair read on the coffee itself.
+ * @param {string} roasterId
+ * @param {{ limit?: number, minBrews?: number }} [options]
+ * @returns {Promise<RatedBag[]>}
+ */
+export async function getBestRatedBagsForRoaster(
+  roasterId,
+  { limit = 5, minBrews = 5 } = {},
+) {
+  const bags = await db.bags.where("roasterId").equals(roasterId).toArray();
+  if (bags.length === 0) return [];
+
+  const brews = await db.brews
+    .where("bagId")
+    .anyOf(bags.map((bag) => bag.id))
+    .toArray();
+
+  /** @type {Map<string, Brew[]>} */
+  const brewsByBagId = new Map();
+  for (const brew of brews) {
+    const bagBrews = brewsByBagId.get(brew.bagId) ?? [];
+    bagBrews.push(brew);
+    brewsByBagId.set(brew.bagId, bagBrews);
+  }
+
+  return bags
+    .map((bag) => {
+      const bagBrews = brewsByBagId.get(bag.id) ?? [];
+      const averageRating =
+        bagBrews.reduce((sum, brew) => sum + brew.rating, 0) /
+        (bagBrews.length || 1);
+      return { bag, averageRating, brewCount: bagBrews.length };
+    })
+    .filter((entry) => entry.brewCount >= minBrews)
+    .sort((a, b) => b.averageRating - a.averageRating)
+    .slice(0, limit);
+}
+
+/**
  * Brews logged against a bag, most recently brewed first. Walks the
  * [bagId+brewDate] compound index directly, same rationale as
  * getBagsForRoaster above.
@@ -202,6 +253,56 @@ export async function getBrewsForBag(bagId, { offset = 0, limit } = {}) {
  */
 export async function countBrewsForBag(bagId) {
   return db.brews.where("bagId").equals(bagId).count();
+}
+
+/**
+ * The top-rated brews logged against a bag, highest rating first (ties
+ * broken by most recent). Unlike getBestRatedBagsForRoaster, this has no
+ * minimum-count floor — it's surfacing this bag's own standout brews, not
+ * ranking it against others.
+ * @param {string} bagId
+ * @param {number} [limit]
+ * @returns {Promise<Brew[]>}
+ */
+export async function getBestBrewsForBag(bagId, limit = 5) {
+  const brews = await db.brews.where("bagId").equals(bagId).toArray();
+  return brews
+    .sort(
+      (a, b) =>
+        b.rating - a.rating || b.brewDate.getTime() - a.brewDate.getTime(),
+    )
+    .slice(0, limit);
+}
+
+/**
+ * @typedef {Object} RatingByDaysSinceRoast
+ * @property {string} brewId
+ * @property {number} daysSinceRoast
+ * @property {number} rating
+ */
+
+/**
+ * Every brew logged against a bag, as individual (days since roast, rating)
+ * points for a freshness scatter plot — deliberately *not* averaged per day,
+ * since a bag's first brew or two are often still-dialing-in test shots and
+ * averaging them into a single point would hide that from the chart.
+ * @param {string} bagId
+ * @returns {Promise<RatingByDaysSinceRoast[]>}
+ */
+export async function getBrewRatingsByDaysSinceRoast(bagId) {
+  const bag = await db.bags.get(bagId);
+  if (!bag) return [];
+
+  const brews = await db.brews.where("bagId").equals(bagId).toArray();
+  return brews
+    .map((brew) => ({
+      brewId: brew.id,
+      daysSinceRoast: Math.round(
+        (brew.brewDate.getTime() - bag.roastDate.getTime()) / MS_PER_DAY,
+      ),
+      rating: brew.rating,
+    }))
+    .sort((a, b) => a.daysSinceRoast - b.daysSinceRoast);
 }
 
 /**
@@ -393,7 +494,6 @@ export async function markBrewerCleaned(brewerId) {
 }
 
 const CLEANING_DUE_SOON_RATIO = 0.9;
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DAYS_PER_WEEK = 7;
 
 /**

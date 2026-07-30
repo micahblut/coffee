@@ -431,7 +431,8 @@ export async function renderBrewsList(container, nav) {
     const deleteId = target.dataset.deleteId;
     if (!deleteId) return;
 
-    if (!confirm("Delete this brew?")) return;
+    if (!(await nav.confirm("Delete this brew?", { confirmLabel: "Delete" })))
+      return;
     await db.brews.delete(deleteId);
     await renderList();
   });

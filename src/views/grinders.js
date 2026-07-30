@@ -177,7 +177,8 @@ export async function renderGrinders(container, nav) {
     }
 
     if (target.dataset.deleteId) {
-      if (!confirm("Delete this grinder?")) return;
+      if (!(await nav.confirm("Delete this grinder?", { confirmLabel: "Delete" })))
+        return;
       await deleteGrinder(target.dataset.deleteId);
       if (editingId === target.dataset.deleteId) resetToCreateMode();
       await renderList();

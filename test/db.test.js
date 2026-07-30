@@ -14,8 +14,11 @@ import {
   getRecentBags,
   getBagsForRoaster,
   countBagsForRoaster,
+  getBestRatedBagsForRoaster,
   getBrewsForBag,
   countBrewsForBag,
+  getBestBrewsForBag,
+  getBrewRatingsByDaysSinceRoast,
   getBrewDatesInMonth,
   getBrewsForDate,
   markGrinderCleaned,
@@ -159,6 +162,51 @@ test("getBagsForRoaster paginates via offset/limit in roastDate-descending order
   );
 });
 
+test("getBestRatedBagsForRoaster ranks bags by average rating, excluding those under the minimum brew count", async () => {
+  const roaster = await addRoaster();
+  const bestBag = await addBag(roaster.id, { name: "Best Bag" });
+  const okBag = await addBag(roaster.id, { name: "OK Bag" });
+  const untestedBag = await addBag(roaster.id, { name: "Too Few Brews" });
+  const grinder = { id: newId(), name: "Grinder" };
+  await db.grinders.add(grinder);
+
+  for (let i = 0; i < 5; i++) {
+    await addBrew(bestBag.id, grinder.id, { rating: 5 });
+  }
+  for (let i = 0; i < 5; i++) {
+    await addBrew(okBag.id, grinder.id, { rating: 3 });
+  }
+  // Only 2 brews despite a perfect average — should be excluded by the
+  // default minimum, since a bag's first couple brews are often still
+  // dialing in a method rather than a fair read on the coffee.
+  await addBrew(untestedBag.id, grinder.id, { rating: 5 });
+  await addBrew(untestedBag.id, grinder.id, { rating: 5 });
+
+  const ranked = await getBestRatedBagsForRoaster(roaster.id);
+  assert.deepEqual(
+    ranked.map((entry) => entry.bag.name),
+    ["Best Bag", "OK Bag"],
+  );
+  assert.equal(ranked[0].averageRating, 5);
+  assert.equal(ranked[0].brewCount, 5);
+});
+
+test("getBestRatedBagsForRoaster respects a custom minBrews and limit", async () => {
+  const roaster = await addRoaster();
+  const bag = await addBag(roaster.id);
+  const grinder = { id: newId(), name: "Grinder" };
+  await db.grinders.add(grinder);
+  await addBrew(bag.id, grinder.id, { rating: 4 });
+
+  assert.deepEqual(await getBestRatedBagsForRoaster(roaster.id), []);
+
+  const included = await getBestRatedBagsForRoaster(roaster.id, {
+    minBrews: 1,
+  });
+  assert.equal(included.length, 1);
+  assert.equal(included[0].bag.id, bag.id);
+});
+
 test("getBrewsForBag paginates via offset/limit in brewDate-descending order", async () => {
   const roaster = await addRoaster();
   const bag = await addBag(roaster.id);
@@ -214,6 +262,66 @@ test("getBrewsForDate returns only brews logged on that calendar day, most recen
   assert.deepEqual(
     brews.map((b) => b.id),
     [second.id, first.id],
+  );
+});
+
+test("getBestBrewsForBag returns the highest-rated brews first, ties broken by most recent", async () => {
+  const roaster = await addRoaster();
+  const bag = await addBag(roaster.id);
+  const grinder = { id: newId(), name: "Grinder" };
+  await db.grinders.add(grinder);
+
+  const low = await addBrew(bag.id, grinder.id, {
+    rating: 2,
+    brewDate: new Date(2026, 0, 1),
+  });
+  const highOld = await addBrew(bag.id, grinder.id, {
+    rating: 5,
+    brewDate: new Date(2026, 0, 2),
+  });
+  const highNew = await addBrew(bag.id, grinder.id, {
+    rating: 5,
+    brewDate: new Date(2026, 0, 3),
+  });
+
+  const best = await getBestBrewsForBag(bag.id, 2);
+  assert.deepEqual(
+    best.map((b) => b.id),
+    [highNew.id, highOld.id],
+  );
+  assert.ok(!best.some((b) => b.id === low.id));
+});
+
+test("getBrewRatingsByDaysSinceRoast returns every brew as its own point, not averaged per day", async () => {
+  const roaster = await addRoaster();
+  const bag = await addBag(roaster.id, { roastDate: new Date(2026, 0, 1) });
+  const grinder = { id: newId(), name: "Grinder" };
+  await db.grinders.add(grinder);
+
+  // Two brews on the same day-since-roast with very different ratings —
+  // e.g. a dialing-in shot followed by a dialed-in one — must both survive
+  // as distinct points rather than collapsing into one averaged point.
+  await addBrew(bag.id, grinder.id, {
+    rating: 2,
+    brewDate: new Date(2026, 0, 6),
+  });
+  await addBrew(bag.id, grinder.id, {
+    rating: 5,
+    brewDate: new Date(2026, 0, 6),
+  });
+  await addBrew(bag.id, grinder.id, {
+    rating: 4,
+    brewDate: new Date(2026, 0, 11),
+  });
+
+  const points = await getBrewRatingsByDaysSinceRoast(bag.id);
+  assert.deepEqual(
+    points.map((p) => [p.daysSinceRoast, p.rating]),
+    [
+      [5, 2],
+      [5, 5],
+      [10, 4],
+    ],
   );
 });
 

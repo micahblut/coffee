@@ -15,6 +15,7 @@ import { renderSettings } from "./views/settings.js";
  * @property {() => Promise<void>} goBack
  * @property {(render: ViewRender) => Promise<void>} showModal
  * @property {() => void} hideModal
+ * @property {(message: string, options?: { confirmLabel?: string, cancelLabel?: string }) => Promise<boolean>} confirm
  */
 
 const app = /** @type {HTMLElement} */ (document.getElementById("app"));
@@ -98,28 +99,89 @@ async function main() {
       el?.remove();
       if (modalContainers.length === 0) modalRoot.hidden = true;
     },
+    // Renders a Yes/No dialog in the same modal layer used everywhere else,
+    // so every "are you sure?" prompt (deletes, destructive imports, etc.)
+    // looks and behaves consistently instead of relying on the browser's
+    // own confirm() styling.
+    async confirm(message, options = {}) {
+      const { confirmLabel = "OK", cancelLabel = "Cancel" } = options;
+      return new Promise((resolve) => {
+        nav.showModal((container) => {
+          container.innerHTML = `
+            <p id="confirm-message"></p>
+            <button type="button" id="confirm-cancel"></button>
+            <button type="button" id="confirm-ok"></button>
+          `;
+
+          const messageEl = /** @type {HTMLElement} */ (
+            container.querySelector("#confirm-message")
+          );
+          messageEl.textContent = message;
+
+          const cancelButton = /** @type {HTMLButtonElement} */ (
+            container.querySelector("#confirm-cancel")
+          );
+          cancelButton.textContent = cancelLabel;
+          cancelButton.addEventListener("click", () => {
+            nav.hideModal();
+            resolve(false);
+          });
+
+          const okButton = /** @type {HTMLButtonElement} */ (
+            container.querySelector("#confirm-ok")
+          );
+          okButton.textContent = confirmLabel;
+          okButton.addEventListener("click", () => {
+            nav.hideModal();
+            resolve(true);
+          });
+        });
+      });
+    },
   };
 
+  /** @type {keyof typeof VIEWS} */
+  let activeTabKey = "home";
+
   /**
-   * @param {(container: HTMLElement, nav: Nav) => void | Promise<void>} render
+   * @param {keyof typeof VIEWS} key
    */
-  function switchTab(render) {
+  function switchTab(key) {
+    activeTabKey = key;
     for (const el of modalContainers) el.remove();
     modalContainers = [];
     modalRoot.hidden = true;
-    stack = [(container) => render(container, nav)];
+    stack = [(container) => VIEWS[key].render(container, nav)];
     renderCurrent();
   }
 
-  for (const view of Object.values(VIEWS)) {
+  for (const [key, view] of Object.entries(VIEWS)) {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = view.label;
-    button.addEventListener("click", () => switchTab(view.render));
+    button.addEventListener("click", () =>
+      switchTab(/** @type {keyof typeof VIEWS} */ (key)),
+    );
     navEl.append(button);
   }
 
-  switchTab(VIEWS.home.render);
+  // Traps the hardware/browser back action so it always returns to Home
+  // instead of leaving the app (or doing nothing) — except when already at
+  // the Home root, where letting the real back action through matches the
+  // normal "back exits the app" expectation at the top of a navigation stack.
+  history.pushState({ caffeGuard: true }, "", location.href);
+  window.addEventListener("popstate", () => {
+    const atHomeRoot =
+      activeTabKey === "home" &&
+      stack.length === 1 &&
+      modalContainers.length === 0;
+    if (atHomeRoot) return;
+
+    switchTab("home");
+    history.pushState({ caffeGuard: true }, "", location.href);
+  });
+
+  switchTab("home");
 }
 
 main();

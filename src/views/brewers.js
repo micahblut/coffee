@@ -164,7 +164,8 @@ export async function renderBrewers(container, nav) {
     }
 
     if (target.dataset.deleteId) {
-      if (!confirm("Delete this brewer?")) return;
+      if (!(await nav.confirm("Delete this brewer?", { confirmLabel: "Delete" })))
+        return;
       await deleteBrewer(target.dataset.deleteId);
       if (editingId === target.dataset.deleteId) resetToCreateMode();
       await renderList();

@@ -122,7 +122,8 @@ export async function renderRoastersList(container, nav) {
     const deleteId = target.dataset.deleteId;
     if (!deleteId) return;
 
-    if (!confirm("Delete this roaster?")) return;
+    if (!(await nav.confirm("Delete this roaster?", { confirmLabel: "Delete" })))
+      return;
     await db.roasters.delete(deleteId);
     await renderList();
   });
