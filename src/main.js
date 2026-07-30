@@ -46,12 +46,11 @@ const VIEWS = {
     hideFromTopNav: true,
   },
   brews: { label: "Brews", render: renderBrewsList, hideFromTopNav: false },
-  // hideFromTopNav: the Settings page (below) now includes a Data section
-  // covering import/export, so the standalone Data tab is redundant.
+  // hideFromTopNav: superseded by the bottom nav's "Settings" tab.
   settings: {
     label: "Settings",
     render: renderSettings,
-    hideFromTopNav: false,
+    hideFromTopNav: true,
   },
   // Reachable from the bottom nav's "Equipment" tab, not the legacy top nav
   // row.
