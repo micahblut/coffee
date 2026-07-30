@@ -7,6 +7,7 @@ import { renderBrewers } from "./views/brewers.js";
 import { renderBrewsList } from "./views/brews.js";
 import { renderData } from "./views/data.js";
 import { renderSettings } from "./views/settings.js";
+import { renderEquipmentHome } from "./views/equipment.js";
 
 /**
  * @typedef {(container: HTMLElement) => void | Promise<void>} ViewRender
@@ -21,15 +22,58 @@ import { renderSettings } from "./views/settings.js";
 const app = /** @type {HTMLElement} */ (document.getElementById("app"));
 
 const VIEWS = {
-  home: { label: "Home", render: renderHome },
-  roasters: { label: "Roasters", render: renderRoastersList },
-  bags: { label: "Bags", render: renderBagsList },
-  grinders: { label: "Grinders", render: renderGrinders },
-  brewers: { label: "Brewers", render: renderBrewers },
-  brews: { label: "Brews", render: renderBrewsList },
-  data: { label: "Data", render: renderData },
-  settings: { label: "Settings", render: renderSettings },
+  // hideFromTopNav: the app header (built below) is the tap target back to
+  // home now, so it doesn't also need a slot in the top nav row.
+  home: { label: "Home", render: renderHome, hideFromTopNav: true },
+  roasters: {
+    label: "Roasters",
+    render: renderRoastersList,
+    hideFromTopNav: false,
+  },
+  bags: { label: "Bags", render: renderBagsList, hideFromTopNav: false },
+  grinders: {
+    label: "Grinders",
+    render: renderGrinders,
+    hideFromTopNav: false,
+  },
+  brewers: {
+    label: "Brewers",
+    render: renderBrewers,
+    hideFromTopNav: false,
+  },
+  brews: { label: "Brews", render: renderBrewsList, hideFromTopNav: false },
+  data: { label: "Data", render: renderData, hideFromTopNav: false },
+  settings: {
+    label: "Settings",
+    render: renderSettings,
+    hideFromTopNav: false,
+  },
+  // Reachable from the bottom nav's "Equipment" tab, not the legacy top nav
+  // row — it just links out to the Grinders/Brewers tabs above.
+  equipment: {
+    label: "Equipment",
+    render: renderEquipmentHome,
+    hideFromTopNav: true,
+  },
 };
+
+const BOTTOM_NAV_ITEMS = /** @type {const} */ ([
+  {
+    key: "home",
+    label: "Coffee",
+    icon: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h14v5a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5V8Z"></path><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"></path><path d="M6 2v2M10 2v2M14 2v2"></path></svg>`,
+  },
+  {
+    key: "equipment",
+    label: "Equipment",
+    icon: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 1 5.4-5.4L15 12l-3-3 2.7-2.7Z"></path></svg>`,
+  },
+  {
+    key: "settings",
+    label: "Settings",
+    icon: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.6 1Z"></path></svg>`,
+  },
+]);
 
 async function main() {
   try {
@@ -40,16 +84,24 @@ async function main() {
   }
 
   app.innerHTML = `
+    <button type="button" id="app-header">Caffè Quaderno</button>
     <nav id="nav"></nav>
     <div id="back-bar"></div>
     <div id="content"></div>
     <div id="modal-root" hidden></div>
+    <nav id="bottom-nav"></nav>
   `;
+  const appHeader = /** @type {HTMLButtonElement} */ (
+    app.querySelector("#app-header")
+  );
   const navEl = /** @type {HTMLElement} */ (app.querySelector("#nav"));
   const backBar = /** @type {HTMLElement} */ (app.querySelector("#back-bar"));
   const content = /** @type {HTMLElement} */ (app.querySelector("#content"));
   const modalRoot = /** @type {HTMLElement} */ (
     app.querySelector("#modal-root")
+  );
+  const bottomNavEl = /** @type {HTMLElement} */ (
+    app.querySelector("#bottom-nav")
   );
 
   /** @type {ViewRender[]} */
@@ -153,9 +205,13 @@ async function main() {
     modalRoot.hidden = true;
     stack = [(container) => VIEWS[key].render(container, nav)];
     renderCurrent();
+    for (const button of bottomNavEl.querySelectorAll("button")) {
+      button.classList.toggle("active", button.dataset.tabKey === key);
+    }
   }
 
   for (const [key, view] of Object.entries(VIEWS)) {
+    if (view.hideFromTopNav) continue;
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = view.label;
@@ -163,6 +219,22 @@ async function main() {
       switchTab(/** @type {keyof typeof VIEWS} */ (key)),
     );
     navEl.append(button);
+  }
+
+  appHeader.addEventListener("click", () => switchTab("home"));
+
+  // Persistent bottom nav — the Coffee/Equipment/Settings tabs from the
+  // home screen sketch, kept alongside the legacy top nav row above rather
+  // than replacing it (that's a bigger IA change for a later pass).
+  for (const item of BOTTOM_NAV_ITEMS) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.tabKey = item.key;
+    button.innerHTML = `<span class="bottom-nav-icon">${item.icon}</span><span>${item.label}</span>`;
+    button.addEventListener("click", () =>
+      switchTab(/** @type {keyof typeof VIEWS} */ (item.key)),
+    );
+    bottomNavEl.append(button);
   }
 
   // Traps the hardware/browser back action so it always returns to Home

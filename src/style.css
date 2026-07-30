@@ -1,8 +1,47 @@
+@font-face {
+  font-family: "Afacad Flux";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("./assets/fonts/AfacadFlux-Variable.woff2") format("woff2");
+}
+
+:root {
+  --color-bg: #dccabe;
+  --color-surface: #ffffff;
+  --color-steel: #dcdedf;
+  --color-steel-dark: #aeb3b6;
+  --color-ink: #1d1e20;
+  --color-ink-soft: #64676b;
+  --color-red: #c8202b;
+  --color-red-dark: #9e181f;
+  --radius-lg: 1rem;
+  --radius-md: 0.65rem;
+  --shadow-card:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 4px 12px rgba(0, 0, 0, 0.05);
+  --bottom-nav-height: 4.25rem;
+  --body-padding-x: 1rem;
+  --body-padding-top: 1.5rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
 body {
-  max-width: 40rem;
+  max-width: 26rem;
   margin: 0 auto;
-  padding: 2rem 1rem;
-  font-family: system-ui, sans-serif;
+  padding: var(--body-padding-top) var(--body-padding-x)
+    calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 1.5rem);
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  min-height: 100vh;
 }
 
 form div {
@@ -16,6 +55,7 @@ form label {
 
 #nav {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1.5rem;
 }
@@ -41,6 +81,43 @@ button {
   padding: 0 0.75rem;
 }
 
+/* App header
+   ------------------------------------------------------------------ */
+
+#app-header {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  background: var(--color-ink);
+  color: var(--color-red);
+  border: none;
+  margin: calc(-1 * var(--body-padding-top)) calc(-1 * var(--body-padding-x))
+    1.5rem;
+  padding: 1rem var(--body-padding-x)
+    calc(1rem + env(safe-area-inset-top));
+  font-family: "Afacad Flux", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 1.4rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+#app-header:active {
+  background: #000;
+}
+
+/* Home screen
+   ------------------------------------------------------------------ */
+
+.calendar-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-steel);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 0.75rem 0.85rem;
+}
+
 #calendar-header {
   display: flex;
   align-items: center;
@@ -48,33 +125,242 @@ button {
   margin-bottom: 0.5rem;
 }
 
+#calendar-month-label {
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+
+/* Styled after the espresso machine's rotary dials — a knurled grip ring
+   (the conic gradient) around a solid recessed face. */
+.calendar-nav-button {
+  position: relative;
+  width: 2rem;
+  height: 2rem;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: none;
+  background: repeating-conic-gradient(
+    from 0deg,
+    #313234 0deg 6deg,
+    #16161a 6deg 12deg
+  );
+  box-shadow:
+    inset 0 0 0 0.3rem #1a1b1d,
+    inset 0 0 0.4rem rgba(0, 0, 0, 0.6),
+    0 2px 3px rgba(0, 0, 0, 0.3);
+  color: #e9e5df;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease;
+}
+
+#calendar-prev:active {
+  transform: rotate(-24deg);
+}
+
+#calendar-next:active {
+  transform: rotate(24deg);
+}
+
 #calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 0.25rem;
+  gap: 0.15rem;
   text-align: center;
 }
 
 .calendar-weekday {
-  font-weight: bold;
-  font-size: 0.75rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+  padding-bottom: 0.15rem;
 }
 
 .calendar-day {
-  min-height: 2.75rem;
+  position: relative;
+  height: 1.9rem;
+  min-height: 0;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 50%;
+  font-size: 0.8rem;
   cursor: pointer;
 }
 
 .calendar-day.is-today {
-  outline: 2px solid currentColor;
+  background: var(--color-ink);
+  color: #fff;
+  font-weight: 700;
 }
 
-.calendar-day.has-brew {
-  font-weight: bold;
-  text-decoration: underline;
+.calendar-day.has-brew::after {
+  content: "";
+  position: absolute;
+  bottom: 0.2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-red);
+}
+
+.calendar-day.is-today.has-brew::after {
+  background: #fff;
+}
+
+.brew-button {
+  display: block;
+  width: 100%;
+  background: var(--color-red);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: none;
+  border-radius: 999px;
+  padding: 0.9rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 12px rgba(200, 32, 43, 0.35);
+}
+
+.brew-button:active {
+  background: var(--color-red-dark);
+  box-shadow: none;
+}
+
+.recent-brews h2 {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+
+.recent-brews-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.recent-brew {
+  background: var(--color-surface);
+  border: 1px solid var(--color-steel);
+  border-radius: var(--radius-md);
+  padding: 0.65rem 0.85rem;
+  cursor: pointer;
+}
+
+.recent-brew-main {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.recent-brew-stars {
+  color: var(--color-red);
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.recent-brew-name {
+  flex: 1;
+  font-weight: 600;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-brew-date {
+  font-size: 0.7rem;
+  color: var(--color-ink-soft);
+  white-space: nowrap;
+}
+
+.recent-brew-notes {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-ink-soft);
+}
+
+.recent-brews-empty {
+  font-size: 0.85rem;
+  color: var(--color-ink-soft);
+  padding: 0.5rem 0;
+}
+
+/* Equipment landing screen
+   ------------------------------------------------------------------ */
+
+.equipment-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.equipment-link {
+  text-align: left;
+  background: var(--color-surface);
+  border: 1px solid var(--color-steel);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+}
+
+/* Bottom nav
+   ------------------------------------------------------------------ */
+
+#bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-width: 26rem;
+  margin: 0 auto;
+  display: flex;
+  background: var(--color-ink);
+  z-index: 10;
+}
+
+#bottom-nav button {
+  flex: 1;
+  min-height: var(--bottom-nav-height);
+  padding: 0.4rem 0.25rem calc(0.4rem + env(safe-area-inset-bottom));
+  background: none;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  color: #babdc1;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+#bottom-nav button.active {
+  color: var(--color-red);
+}
+
+.bottom-nav-icon {
+  display: flex;
 }
 
 .modal {

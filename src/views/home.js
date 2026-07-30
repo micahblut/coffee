@@ -1,7 +1,20 @@
-import { getBrewDatesInMonth } from "../db/db.js";
+import { db, getBrewDatesInMonth, getRecentBrews } from "../db/db.js";
 import { renderBrewForm, renderBrewsForDate } from "./brews.js";
 
-const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
+const RECENT_BREWS_LIMIT = 10;
+
+const CHEVRON_LEFT = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>`;
+const CHEVRON_RIGHT = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
+
+/**
+ * @param {import("../models/types.js").Brew} brew
+ * @param {Map<string, import("../models/types.js").Bag>} bagsById
+ * @returns {string}
+ */
+function formatCoffeeName(brew, bagsById) {
+  return bagsById.get(brew.bagId)?.name ?? "Unknown coffee";
+}
 
 /**
  * @param {HTMLElement} container
@@ -13,9 +26,12 @@ export async function renderHome(container, nav) {
   let month = today.getMonth();
 
   container.innerHTML = `
-    <h1>caffe</h1>
-    <button type="button" id="brew-button">Brew</button>
-    <div id="calendar"></div>
+    <section class="calendar-card" id="calendar"></section>
+    <button type="button" id="brew-button" class="brew-button">Brew</button>
+    <section class="recent-brews">
+      <h2>Recent brews</h2>
+      <ul id="recent-brews-list" class="recent-brews-list"></ul>
+    </section>
   `;
 
   const brewButton = /** @type {HTMLButtonElement} */ (
@@ -43,9 +59,9 @@ export async function renderHome(container, nav) {
 
     calendar.innerHTML = `
       <div id="calendar-header">
-        <button type="button" id="calendar-prev">‹</button>
+        <button type="button" id="calendar-prev" class="calendar-nav-button" aria-label="Previous month">${CHEVRON_LEFT}</button>
         <span id="calendar-month-label"></span>
-        <button type="button" id="calendar-next">›</button>
+        <button type="button" id="calendar-next" class="calendar-nav-button" aria-label="Next month">${CHEVRON_RIGHT}</button>
       </div>
       <div id="calendar-grid"></div>
     `;
@@ -116,5 +132,73 @@ export async function renderHome(container, nav) {
     });
   }
 
-  await renderMonth();
+  const recentBrewsList = /** @type {HTMLUListElement} */ (
+    container.querySelector("#recent-brews-list")
+  );
+
+  async function renderRecentBrews() {
+    const [brews, bags] = await Promise.all([
+      getRecentBrews(RECENT_BREWS_LIMIT),
+      db.bags.toArray(),
+    ]);
+    const bagsById = new Map(bags.map((bag) => [bag.id, bag]));
+
+    recentBrewsList.innerHTML = "";
+
+    if (brews.length === 0) {
+      const empty = document.createElement("li");
+      empty.className = "recent-brews-empty";
+      empty.textContent = "No brews logged yet — tap Brew to log your first cup.";
+      recentBrewsList.append(empty);
+      return;
+    }
+
+    for (const brew of brews) {
+      const item = document.createElement("li");
+      item.className = "recent-brew";
+      item.dataset.brewId = brew.id;
+
+      const main = document.createElement("div");
+      main.className = "recent-brew-main";
+
+      const stars = document.createElement("span");
+      stars.className = "recent-brew-stars";
+      stars.textContent = "★".repeat(brew.rating) + "☆".repeat(5 - brew.rating);
+      main.append(stars);
+
+      const name = document.createElement("span");
+      name.className = "recent-brew-name";
+      name.textContent = formatCoffeeName(brew, bagsById);
+      main.append(name);
+
+      const date = document.createElement("span");
+      date.className = "recent-brew-date";
+      date.textContent = brew.brewDate.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+      });
+      main.append(date);
+
+      item.append(main);
+
+      if (brew.notes) {
+        const notes = document.createElement("p");
+        notes.className = "recent-brew-notes";
+        notes.textContent = brew.notes;
+        item.append(notes);
+      }
+
+      recentBrewsList.append(item);
+    }
+  }
+
+  recentBrewsList.addEventListener("click", (event) => {
+    const target = /** @type {HTMLElement} */ (event.target);
+    const item = target.closest("[data-brew-id]");
+    const brewId = /** @type {HTMLElement | null} */ (item)?.dataset.brewId;
+    if (!brewId) return;
+    nav.navigate((c) => renderBrewForm(c, nav, { brewId }));
+  });
+
+  await Promise.all([renderMonth(), renderRecentBrews()]);
 }

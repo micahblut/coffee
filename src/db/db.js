@@ -336,6 +336,25 @@ export async function getBrewsForDate(date) {
   return brews.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
+/**
+ * The most recently logged brews across all bags, most recent brewDate
+ * first (ties broken by logging time). Mirrors getBestBrewsForBag's
+ * in-memory sort — dataset is small enough (a hobbyist's own brew log)
+ * that scanning the whole table is simpler than a compound index.
+ * @param {number} limit
+ * @returns {Promise<Brew[]>}
+ */
+export async function getRecentBrews(limit) {
+  const brews = await db.brews.toArray();
+  return brews
+    .sort(
+      (a, b) =>
+        b.brewDate.getTime() - a.brewDate.getTime() ||
+        b.createdAt.getTime() - a.createdAt.getTime(),
+    )
+    .slice(0, limit);
+}
+
 const EXPORT_VERSION = 1;
 
 /**
