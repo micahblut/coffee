@@ -197,7 +197,6 @@ export async function renderCoffeeHome(container, nav) {
   addBagButton.addEventListener("click", () => {
     nav.showModal((sheet) =>
       renderBagForm(sheet, nav, {
-        isModal: true,
         onSaved: async () => {
           nav.hideModal();
           bagsOffset = 0;
@@ -225,7 +224,6 @@ export async function renderCoffeeHome(container, nav) {
   addRoasterButton.addEventListener("click", () => {
     nav.showModal((sheet) =>
       renderRoasterForm(sheet, nav, {
-        isModal: true,
         onSaved: async () => {
           nav.hideModal();
           roastersOffset = 0;

@@ -26,43 +26,31 @@ function formatRatingStars(rating) {
  * @param {import("../main.js").Nav} nav
  * @param {{
  *   roasterId?: string,
- *   isModal?: boolean,
  *   onSaved?: (roaster: import("../models/types.js").Roaster) => void | Promise<void>,
  * }} [options]
  */
 export async function renderRoasterForm(container, nav, options = {}) {
-  const { roasterId, isModal, onSaved } = options;
+  const { roasterId, onSaved } = options;
   const existing = roasterId ? await db.roasters.get(roasterId) : undefined;
-
-  // Editing an existing roaster from a sheet (the Coffee page's tap-to-edit
-  // flow) skips the Cancel button in favor of the sheet's drag-to-dismiss
-  // gesture — deleting a roaster now lives on the Roaster View page itself
-  // instead.
-  const isEditSheet = isModal && roasterId;
 
   container.innerHTML = `
     <h1>${roasterId ? "Edit roaster" : "Add roaster"}</h1>
     <form id="roaster-form">
-      <div>
-        <label for="roaster-name">Name</label>
-        <input id="roaster-name" name="name" type="text" autocomplete="off" required />
-      </div>
-      <div>
-        <label for="roaster-website">Website</label>
-        <input id="roaster-website" name="website" type="url" placeholder="https://" autocomplete="off" />
-      </div>
-      ${
-        isEditSheet
-          ? `
-        <div class="sheet-actions">
-          <button type="submit" class="brew-button">Save roaster</button>
+      <section class="settings-section">
+        <div class="settings-card">
+          <div>
+            <label for="roaster-name">Name</label>
+            <input id="roaster-name" name="name" type="text" autocomplete="off" required />
+          </div>
+          <div>
+            <label for="roaster-website">Website</label>
+            <input id="roaster-website" name="website" type="url" placeholder="https://" autocomplete="off" />
+          </div>
         </div>
-      `
-          : `
-        <button type="submit">${roasterId ? "Save roaster" : "Add roaster"}</button>
-        <button type="button" id="roaster-form-cancel">Cancel</button>
-      `
-      }
+      </section>
+      <div class="sheet-actions">
+        <button type="submit" class="brew-button">Save</button>
+      </div>
     </form>
   `;
 
@@ -77,14 +65,6 @@ export async function renderRoasterForm(container, nav, options = {}) {
   );
   nameInput.value = existing?.name ?? "";
   websiteInput.value = existing?.website ?? "";
-
-  const cancelButton = /** @type {HTMLButtonElement | null} */ (
-    container.querySelector("#roaster-form-cancel")
-  );
-  cancelButton?.addEventListener("click", () => {
-    if (isModal) nav.hideModal();
-    else nav.goBack();
-  });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -108,10 +88,8 @@ export async function renderRoasterForm(container, nav, options = {}) {
 
     if (onSaved) {
       await onSaved(saved);
-    } else if (isModal) {
-      nav.hideModal();
     } else {
-      await nav.goBack();
+      nav.hideModal();
     }
   });
 }
@@ -188,7 +166,6 @@ export async function renderRoasterDetail(container, nav, roasterId) {
     nav.showModal((sheet) =>
       renderRoasterForm(sheet, nav, {
         roasterId,
-        isModal: true,
         onSaved: async () => {
           nav.hideModal();
           await renderRoasterDetail(container, nav, roasterId);
@@ -214,7 +191,6 @@ export async function renderRoasterDetail(container, nav, roasterId) {
     addBagButton.addEventListener("click", () => {
       nav.showModal((sheet) =>
         renderBagForm(sheet, nav, {
-          isModal: true,
           onSaved: async () => {
             nav.hideModal();
             await renderRoasterDetail(container, nav, roasterId);

@@ -140,71 +140,60 @@ function renderFreshnessChartSvg(points) {
  * @param {import("../main.js").Nav} nav
  * @param {{
  *   bagId?: string,
- *   isModal?: boolean,
  *   onSaved?: (bag: import("../models/types.js").Bag) => void | Promise<void>,
  * }} [options]
  */
 export async function renderBagForm(container, nav, options = {}) {
-  const { bagId, isModal, onSaved } = options;
+  const { bagId, onSaved } = options;
   const [roasters, existing] = await Promise.all([
     db.roasters.orderBy("name").toArray(),
     bagId ? db.bags.get(bagId) : undefined,
   ]);
 
-  // Editing an existing bag from a sheet (the Coffee page's tap-to-edit
-  // flow) skips the Cancel button in favor of the sheet's drag-to-dismiss
-  // gesture — deleting a bag now lives on the Bag View page itself instead.
-  const isEditSheet = isModal && bagId;
-
   container.innerHTML = `
     <h1>${bagId ? "Edit bag" : "Add bag"}</h1>
     <form id="bag-form">
-      <div>
-        <label for="bag-name">Name</label>
-        <input id="bag-name" name="name" type="text" placeholder="e.g. Sunrise Espresso Blend" autocomplete="off" required />
-      </div>
-      <div>
-        <label for="bag-roaster">Roaster</label>
-        <select id="bag-roaster" name="roasterId" required></select>
-        <button type="button" id="add-roaster-inline">+ Add new roaster</button>
-      </div>
-      <div>
-        <label for="bag-roast-date">Roast date</label>
-        <input id="bag-roast-date" name="roastDate" type="date" max="${todayDateInputValue()}" autocomplete="off" required />
-      </div>
-      <div>
-        <label for="bag-type">Type</label>
-        <select id="bag-type" name="type" required>
-          ${BAG_TYPES.map((type) => `<option value="${type}">${type}</option>`).join("")}
-        </select>
-      </div>
-      <div>
-        <label for="bag-origin">Origin</label>
-        <input id="bag-origin" name="origin" type="text" placeholder="e.g. Ethiopia, Yirgacheffe" autocomplete="off" />
-      </div>
-      <div>
-        <label for="bag-process">Process</label>
-        <select id="bag-process" name="process">
-          <option value="">—</option>
-          ${ROAST_PROCESSES.map((process) => `<option value="${process}">${process}</option>`).join("")}
-        </select>
-      </div>
-      <div>
-        <label for="bag-weight">Weight (g)</label>
-        <input id="bag-weight" name="weightGrams" type="number" min="0" autocomplete="off" />
-      </div>
-      ${
-        isEditSheet
-          ? `
-        <div class="sheet-actions">
-          <button type="submit" class="brew-button">Save bag</button>
+      <section class="settings-section">
+        <div class="settings-card">
+          <div>
+            <label for="bag-name">Name</label>
+            <input id="bag-name" name="name" type="text" placeholder="e.g. Sunrise Espresso Blend" autocomplete="off" required />
+          </div>
+          <div>
+            <label for="bag-roaster">Roaster</label>
+            <select id="bag-roaster" name="roasterId" required></select>
+            <button type="button" id="add-roaster-inline" class="inline-text-button">+ Add new roaster</button>
+          </div>
+          <div>
+            <label for="bag-roast-date">Roast date</label>
+            <input id="bag-roast-date" name="roastDate" type="date" max="${todayDateInputValue()}" autocomplete="off" required />
+          </div>
+          <div>
+            <label for="bag-type">Type</label>
+            <select id="bag-type" name="type" required>
+              ${BAG_TYPES.map((type) => `<option value="${type}">${type}</option>`).join("")}
+            </select>
+          </div>
+          <div>
+            <label for="bag-origin">Origin</label>
+            <input id="bag-origin" name="origin" type="text" placeholder="e.g. Ethiopia, Yirgacheffe" autocomplete="off" />
+          </div>
+          <div>
+            <label for="bag-process">Process</label>
+            <select id="bag-process" name="process">
+              <option value="">—</option>
+              ${ROAST_PROCESSES.map((process) => `<option value="${process}">${process}</option>`).join("")}
+            </select>
+          </div>
+          <div>
+            <label for="bag-weight">Weight (g)</label>
+            <input id="bag-weight" name="weightGrams" type="number" min="0" autocomplete="off" />
+          </div>
         </div>
-      `
-          : `
-        <button type="submit">${bagId ? "Save bag" : "Add bag"}</button>
-        <button type="button" id="bag-form-cancel">Cancel</button>
-      `
-      }
+      </section>
+      <div class="sheet-actions">
+        <button type="submit" class="brew-button">Save</button>
+      </div>
     </form>
   `;
 
@@ -249,21 +238,12 @@ export async function renderBagForm(container, nav, options = {}) {
   weightInput.value =
     existing?.weightGrams != null ? String(existing.weightGrams) : "";
 
-  const cancelButton = /** @type {HTMLButtonElement | null} */ (
-    container.querySelector("#bag-form-cancel")
-  );
-  cancelButton?.addEventListener("click", () => {
-    if (isModal) nav.hideModal();
-    else nav.goBack();
-  });
-
   const addRoasterButton = /** @type {HTMLButtonElement} */ (
     container.querySelector("#add-roaster-inline")
   );
   addRoasterButton.addEventListener("click", () => {
     nav.showModal((modalContainer) =>
       renderRoasterForm(modalContainer, nav, {
-        isModal: true,
         onSaved: (roaster) => {
           const option = document.createElement("option");
           option.value = roaster.id;
@@ -314,10 +294,8 @@ export async function renderBagForm(container, nav, options = {}) {
 
     if (onSaved) {
       await onSaved(saved);
-    } else if (isModal) {
-      nav.hideModal();
     } else {
-      await nav.goBack();
+      nav.hideModal();
     }
   });
 }
@@ -398,7 +376,6 @@ export async function renderBagDetail(container, nav, bagId) {
     nav.showModal((sheet) =>
       renderBagForm(sheet, nav, {
         bagId,
-        isModal: true,
         onSaved: async () => {
           nav.hideModal();
           await renderBagDetail(container, nav, bagId);
@@ -515,6 +492,10 @@ export async function renderBagDetail(container, nav, bagId) {
       renderBrewSheet(sheet, nav, {
         brewId,
         onSaved: async () => {
+          nav.hideModal();
+          await renderBagDetail(container, nav, bagId);
+        },
+        onDeleted: async () => {
           nav.hideModal();
           await renderBagDetail(container, nav, bagId);
         },

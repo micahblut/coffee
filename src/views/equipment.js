@@ -1,6 +1,13 @@
-import { db } from "../db/db.js";
+import {
+  db,
+  markGrinderCleaned,
+  markBrewerCleaned,
+} from "../db/db.js";
 import { renderGrinderEditSheet } from "./grinders.js";
 import { renderBrewerEditSheet } from "./brewers.js";
+
+const PENCIL_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>`;
+const MARK_CLEANED_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
 
 /**
  * @param {import("../models/types.js").Grinder | import("../models/types.js").Brewer} equipment
@@ -67,11 +74,28 @@ export async function renderEquipmentHome(container, nav) {
       name.textContent = grinder.name;
       item.append(name);
 
+      const trailing = document.createElement("span");
+      trailing.className = "equipment-item-trailing";
+
+      const markCleanedButton = document.createElement("button");
+      markCleanedButton.type = "button";
+      markCleanedButton.className = "equipment-item-clean-button";
+      markCleanedButton.dataset.markCleanedId = grinder.id;
+      markCleanedButton.setAttribute("aria-label", "Mark cleaned");
+      markCleanedButton.innerHTML = MARK_CLEANED_ICON;
+      trailing.append(markCleanedButton);
+
       const meta = document.createElement("span");
       meta.className = "equipment-item-meta";
       meta.textContent = formatLastCleaned(grinder);
-      item.append(meta);
+      trailing.append(meta);
 
+      const editIcon = document.createElement("span");
+      editIcon.className = "equipment-item-edit-icon";
+      editIcon.innerHTML = PENCIL_ICON;
+      trailing.append(editIcon);
+
+      item.append(trailing);
       grinderList.append(item);
     }
   }
@@ -98,18 +122,46 @@ export async function renderEquipmentHome(container, nav) {
       name.textContent = brewer.name;
       item.append(name);
 
+      const trailing = document.createElement("span");
+      trailing.className = "equipment-item-trailing";
+
+      const markCleanedButton = document.createElement("button");
+      markCleanedButton.type = "button";
+      markCleanedButton.className = "equipment-item-clean-button";
+      markCleanedButton.dataset.markCleanedId = brewer.id;
+      markCleanedButton.setAttribute("aria-label", "Mark cleaned");
+      markCleanedButton.innerHTML = MARK_CLEANED_ICON;
+      trailing.append(markCleanedButton);
+
       const meta = document.createElement("span");
       meta.className = "equipment-item-meta";
       meta.textContent = formatLastCleaned(brewer);
-      item.append(meta);
+      trailing.append(meta);
 
+      const editIcon = document.createElement("span");
+      editIcon.className = "equipment-item-edit-icon";
+      editIcon.innerHTML = PENCIL_ICON;
+      trailing.append(editIcon);
+
+      item.append(trailing);
       brewerList.append(item);
     }
   }
 
   grinderList.addEventListener("click", async (event) => {
-    const target = /** @type {HTMLElement} */ (event.target);
-    const item = target.closest("[data-grinder-id]");
+    if (!(event.target instanceof Element)) return;
+
+    const markCleanedTarget = event.target.closest("[data-mark-cleaned-id]");
+    const markCleanedId = /** @type {HTMLElement | null} */ (
+      markCleanedTarget
+    )?.dataset.markCleanedId;
+    if (markCleanedId) {
+      await markGrinderCleaned(markCleanedId);
+      await renderGrinderList();
+      return;
+    }
+
+    const item = event.target.closest("[data-grinder-id]");
     const grinderId = /** @type {HTMLElement | null} */ (item)?.dataset
       .grinderId;
     if (!grinderId) return;
@@ -123,8 +175,19 @@ export async function renderEquipmentHome(container, nav) {
   });
 
   brewerList.addEventListener("click", async (event) => {
-    const target = /** @type {HTMLElement} */ (event.target);
-    const item = target.closest("[data-brewer-id]");
+    if (!(event.target instanceof Element)) return;
+
+    const markCleanedTarget = event.target.closest("[data-mark-cleaned-id]");
+    const markCleanedId = /** @type {HTMLElement | null} */ (
+      markCleanedTarget
+    )?.dataset.markCleanedId;
+    if (markCleanedId) {
+      await markBrewerCleaned(markCleanedId);
+      await renderBrewerList();
+      return;
+    }
+
+    const item = event.target.closest("[data-brewer-id]");
     const brewerId = /** @type {HTMLElement | null} */ (item)?.dataset
       .brewerId;
     if (!brewerId) return;

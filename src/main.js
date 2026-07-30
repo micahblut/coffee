@@ -16,7 +16,7 @@ import { renderCoffeeHome } from "./views/coffee.js";
 
 const app = /** @type {HTMLElement} */ (document.getElementById("app"));
 
-// Keyed by bottom-nav tab, plus "home" (reachable via the app header).
+// Keyed by bottom-nav tab (Home is also reachable via the app header).
 // Roasters, bags, grinders, and brewers are managed entirely through the
 // Coffee/Equipment tabs and their own detail pages now, so they no longer
 // need root-level views of their own.
@@ -28,6 +28,11 @@ const VIEWS = {
 };
 
 const BOTTOM_NAV_ITEMS = /** @type {const} */ ([
+  {
+    key: "home",
+    label: "Home",
+    icon: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7"></path><path d="M4 10v10a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1V10"></path></svg>`,
+  },
   {
     key: "coffee",
     label: "Coffee",

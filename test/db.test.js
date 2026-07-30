@@ -301,13 +301,17 @@ test("getBrewRatingsByDaysSinceRoast returns every brew as its own point, not av
   // Two brews on the same day-since-roast with very different ratings —
   // e.g. a dialing-in shot followed by a dialed-in one — must both survive
   // as distinct points rather than collapsing into one averaged point.
+  // Distinct createdAt times (rather than the shared default) exercise the
+  // logging-time tiebreak that keeps same-day results deterministic.
   await addBrew(bag.id, grinder.id, {
     rating: 2,
     brewDate: new Date(2026, 0, 6),
+    createdAt: new Date(2026, 0, 6, 8),
   });
   await addBrew(bag.id, grinder.id, {
     rating: 5,
     brewDate: new Date(2026, 0, 6),
+    createdAt: new Date(2026, 0, 6, 9),
   });
   await addBrew(bag.id, grinder.id, {
     rating: 4,

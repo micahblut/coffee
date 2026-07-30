@@ -116,9 +116,14 @@ textarea:focus {
   margin: 1.34rem 0.5rem 0 0;
 }
 
+/* Sized closer to the h1 it sits beside (font-size 2em) rather than reusing
+   .calendar-nav-button's size verbatim — that size is tuned for pagination
+   controls next to much smaller text, and looked undersized here. The SVG's
+   own width/height attributes are overridden below to scale the glyph up
+   with the button instead of leaving it at the shared icon's default 18px. */
 .back-button {
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 2.25rem;
+  height: 2.25rem;
   min-height: 0;
   padding: 0;
   border: none;
@@ -127,6 +132,11 @@ textarea:focus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.back-button svg {
+  width: 1.6rem;
+  height: 1.6rem;
 }
 
 .back-button:active {
@@ -440,6 +450,42 @@ button {
   font-size: 0.75rem;
   color: var(--color-ink-soft);
   white-space: nowrap;
+}
+
+/* Groups the meta text and edit pencil so justify-content: space-between
+   above only has to balance two things (name, this group) instead of
+   spreading three items evenly across the row. */
+.equipment-item-trailing {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* A hint of what tapping the card does — same pencil used on the Bag View
+   and Roaster View's edit affordance. */
+.equipment-item-edit-icon {
+  display: inline-flex;
+  color: var(--color-red);
+}
+
+/* A quick action inside an otherwise tap-to-edit row, so it needs its own
+   tap target rather than the row's cursor:pointer hint alone — sized like
+   the app's other small icon buttons (e.g. .detail-edit-button). */
+.equipment-item-clean-button {
+  width: 1.75rem;
+  height: 1.75rem;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-red);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.equipment-item-clean-button:active {
+  color: var(--color-red-dark);
 }
 
 /* The add-equipment button reuses .brew-button-frame, but that frame's own
@@ -858,12 +904,6 @@ button {
   background: var(--color-steel);
 }
 
-.sheet-content h2 {
-  margin: 0 0 1rem;
-  font-size: 1.1rem;
-  font-weight: 700;
-}
-
 .sheet-actions {
   margin-top: 0.5rem;
 }
@@ -881,30 +921,26 @@ button {
   margin-top: 0.75rem;
 }
 
-.sheet-secondary-button,
-.sheet-danger-button {
+.sheet-secondary-button {
   background: var(--color-surface);
   border: 1px solid var(--color-steel);
   border-radius: var(--radius);
   box-shadow: var(--emboss-raised);
   font-weight: 600;
-}
-
-.sheet-secondary-button:active,
-.sheet-danger-button:active {
-  box-shadow: var(--emboss-sunken);
-}
-
-.sheet-secondary-button {
   color: var(--color-ink-soft);
 }
 
-.sheet-danger-button {
-  color: var(--color-red);
+.sheet-secondary-button:active {
+  box-shadow: var(--emboss-sunken);
 }
 
-.sheet-danger-button:active {
-  color: var(--color-red-dark);
+/* A persistent unit/context hint next to a field — unlike a placeholder,
+   this doesn't disappear once the field is focused or filled in. */
+.field-hint {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--color-ink-soft);
 }
 
 /* Add brew sheet

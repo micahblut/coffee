@@ -39,25 +39,30 @@ export function formatCleaningStatus(status) {
  */
 export async function renderGrinderEditSheet(container, nav, grinder, onSaved) {
   container.innerHTML = `
-    <h2>${grinder ? "Edit grinder" : "Add grinder"}</h2>
+    <h1>${grinder ? "Edit grinder" : "Add grinder"}</h1>
     <form id="grinder-edit-form">
-      <div>
-        <label for="grinder-edit-name">Name</label>
-        <input id="grinder-edit-name" name="name" type="text" autocomplete="off" required />
-      </div>
-      <div>
-        <label for="grinder-edit-last-cleaned">Last cleaned</label>
-        <input id="grinder-edit-last-cleaned" name="lastCleanedDate" type="date" autocomplete="off" />
-      </div>
-      <div>
-        <label for="grinder-edit-interval-grinds">Remind me to clean every</label>
-        <input id="grinder-edit-interval-grinds" name="cleaningIntervalGrinds" type="number" min="1" autocomplete="off" placeholder="grinds" />
-      </div>
-      <div>
-        <label for="grinder-edit-interval-weeks">...or every</label>
-        <input id="grinder-edit-interval-weeks" name="cleaningIntervalWeeks" type="number" min="1" autocomplete="off" placeholder="weeks" />
-        <span>weeks, whichever comes first</span>
-      </div>
+      <section class="settings-section">
+        <div class="settings-card">
+          <div>
+            <label for="grinder-edit-name">Name</label>
+            <input id="grinder-edit-name" name="name" type="text" autocomplete="off" required />
+          </div>
+          <div>
+            <label for="grinder-edit-last-cleaned">Last cleaned</label>
+            <input id="grinder-edit-last-cleaned" name="lastCleanedDate" type="date" autocomplete="off" />
+          </div>
+          <div>
+            <label for="grinder-edit-interval-grinds">Remind me to clean every</label>
+            <input id="grinder-edit-interval-grinds" name="cleaningIntervalGrinds" type="number" min="1" autocomplete="off" placeholder="e.g. 20" />
+            <span class="field-hint">grinds</span>
+          </div>
+          <div>
+            <label for="grinder-edit-interval-weeks">...or every</label>
+            <input id="grinder-edit-interval-weeks" name="cleaningIntervalWeeks" type="number" min="1" autocomplete="off" placeholder="e.g. 4" />
+            <span class="field-hint">weeks, whichever comes first</span>
+          </div>
+        </div>
+      </section>
       <div class="sheet-actions">
         <button type="submit" class="brew-button">Save</button>
       </div>
@@ -67,7 +72,7 @@ export async function renderGrinderEditSheet(container, nav, grinder, onSaved) {
         ? `
       <div class="sheet-secondary-actions">
         <button type="button" id="grinder-edit-mark-cleaned" class="sheet-secondary-button">Mark cleaned</button>
-        <button type="button" id="grinder-edit-delete" class="sheet-danger-button">Delete grinder</button>
+        <button type="button" id="grinder-edit-delete" class="detail-delete-button">Delete grinder</button>
       </div>
     `
         : ""

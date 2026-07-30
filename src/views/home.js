@@ -220,6 +220,10 @@ export async function renderHome(container, nav) {
           nav.hideModal();
           await Promise.all([renderMonth(), renderRecentBrews()]);
         },
+        onDeleted: async () => {
+          nav.hideModal();
+          await Promise.all([renderMonth(), renderRecentBrews()]);
+        },
       }),
     );
   });

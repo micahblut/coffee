@@ -25,25 +25,30 @@ import {
  */
 export async function renderBrewerEditSheet(container, nav, brewer, onSaved) {
   container.innerHTML = `
-    <h2>${brewer ? "Edit brewer" : "Add brewer"}</h2>
+    <h1>${brewer ? "Edit brewer" : "Add brewer"}</h1>
     <form id="brewer-edit-form">
-      <div>
-        <label for="brewer-edit-name">Name</label>
-        <input id="brewer-edit-name" name="name" type="text" autocomplete="off" required />
-      </div>
-      <div>
-        <label for="brewer-edit-last-cleaned">Last cleaned</label>
-        <input id="brewer-edit-last-cleaned" name="lastCleanedDate" type="date" autocomplete="off" />
-      </div>
-      <div>
-        <label for="brewer-edit-interval-brews">Remind me to clean every</label>
-        <input id="brewer-edit-interval-brews" name="cleaningIntervalBrews" type="number" min="1" autocomplete="off" placeholder="brews" />
-      </div>
-      <div>
-        <label for="brewer-edit-interval-weeks">...or every</label>
-        <input id="brewer-edit-interval-weeks" name="cleaningIntervalWeeks" type="number" min="1" autocomplete="off" placeholder="weeks" />
-        <span>weeks, whichever comes first</span>
-      </div>
+      <section class="settings-section">
+        <div class="settings-card">
+          <div>
+            <label for="brewer-edit-name">Name</label>
+            <input id="brewer-edit-name" name="name" type="text" autocomplete="off" required />
+          </div>
+          <div>
+            <label for="brewer-edit-last-cleaned">Last cleaned</label>
+            <input id="brewer-edit-last-cleaned" name="lastCleanedDate" type="date" autocomplete="off" />
+          </div>
+          <div>
+            <label for="brewer-edit-interval-brews">Remind me to clean every</label>
+            <input id="brewer-edit-interval-brews" name="cleaningIntervalBrews" type="number" min="1" autocomplete="off" placeholder="e.g. 20" />
+            <span class="field-hint">brews</span>
+          </div>
+          <div>
+            <label for="brewer-edit-interval-weeks">...or every</label>
+            <input id="brewer-edit-interval-weeks" name="cleaningIntervalWeeks" type="number" min="1" autocomplete="off" placeholder="e.g. 4" />
+            <span class="field-hint">weeks, whichever comes first</span>
+          </div>
+        </div>
+      </section>
       <div class="sheet-actions">
         <button type="submit" class="brew-button">Save</button>
       </div>
@@ -53,7 +58,7 @@ export async function renderBrewerEditSheet(container, nav, brewer, onSaved) {
         ? `
       <div class="sheet-secondary-actions">
         <button type="button" id="brewer-edit-mark-cleaned" class="sheet-secondary-button">Mark cleaned</button>
-        <button type="button" id="brewer-edit-delete" class="sheet-danger-button">Delete brewer</button>
+        <button type="button" id="brewer-edit-delete" class="detail-delete-button">Delete brewer</button>
       </div>
     `
         : ""

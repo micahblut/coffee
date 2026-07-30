@@ -67,10 +67,11 @@ function starRatingHtml() {
  *   brewId?: string,
  *   prefillBagId?: string,
  *   onSaved?: (brew: import("../models/types.js").Brew) => void | Promise<void>,
+ *   onDeleted?: () => void | Promise<void>,
  * }} [options]
  */
 export async function renderBrewSheet(container, nav, options = {}) {
-  const { brewId, prefillBagId, onSaved } = options;
+  const { brewId, prefillBagId, onSaved, onDeleted } = options;
   const [grinders, brewers] = await Promise.all([
     db.grinders.orderBy("name").toArray(),
     db.brewers.orderBy("name").toArray(),
@@ -258,7 +259,32 @@ export async function renderBrewSheet(container, nav, options = {}) {
         <button type="submit" class="brew-button">Save</button>
       </div>
     </form>
+    ${
+      existing
+        ? `
+      <div class="sheet-secondary-actions">
+        <button type="button" id="brew-delete" class="detail-delete-button">Delete brew</button>
+      </div>
+    `
+        : ""
+    }
   `;
+
+  if (existing) {
+    const deleteButton = /** @type {HTMLButtonElement} */ (
+      container.querySelector("#brew-delete")
+    );
+    deleteButton.addEventListener("click", async () => {
+      if (!(await nav.confirm("Delete this brew?", { confirmLabel: "Delete" })))
+        return;
+      await db.brews.delete(existing.id);
+      if (onDeleted) {
+        await onDeleted();
+      } else {
+        nav.hideModal();
+      }
+    });
+  }
 
   const bagSelect = /** @type {HTMLSelectElement} */ (
     container.querySelector("#brew-bag")
@@ -321,7 +347,6 @@ export async function renderBrewSheet(container, nav, options = {}) {
   addBagButton.addEventListener("click", () => {
     nav.showModal((modalContainer) =>
       renderBagForm(modalContainer, nav, {
-        isModal: true,
         onSaved: async (bag) => {
           // roasterNames was snapshotted when this form loaded, so a roaster
           // created just now (nested inside this same detour) won't be in

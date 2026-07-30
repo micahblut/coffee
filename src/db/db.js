@@ -436,7 +436,10 @@ export async function getBestBrewsForBag(bagId, limit = 5) {
  * Every brew logged against a bag, as individual (days since roast, rating)
  * points for a freshness scatter plot — deliberately *not* averaged per day,
  * since a bag's first brew or two are often still-dialing-in test shots and
- * averaging them into a single point would hide that from the chart.
+ * averaging them into a single point would hide that from the chart. Ties on
+ * daysSinceRoast break by logging time (createdAt) — otherwise same-day
+ * brews would sort in whatever order IndexedDB happens to iterate them,
+ * which isn't guaranteed to be deterministic.
  * @param {string} bagId
  * @returns {Promise<RatingByDaysSinceRoast[]>}
  */
@@ -452,8 +455,18 @@ export async function getBrewRatingsByDaysSinceRoast(bagId) {
         (brew.brewDate.getTime() - bag.roastDate.getTime()) / MS_PER_DAY,
       ),
       rating: brew.rating,
+      createdAt: brew.createdAt,
     }))
-    .sort((a, b) => a.daysSinceRoast - b.daysSinceRoast);
+    .sort(
+      (a, b) =>
+        a.daysSinceRoast - b.daysSinceRoast ||
+        a.createdAt.getTime() - b.createdAt.getTime(),
+    )
+    .map(({ brewId, daysSinceRoast, rating }) => ({
+      brewId,
+      daysSinceRoast,
+      rating,
+    }));
 }
 
 /**
