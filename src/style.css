@@ -333,22 +333,180 @@ button {
   padding: 0.5rem 0;
 }
 
-/* Equipment landing screen
+/* Equipment screen
    ------------------------------------------------------------------ */
 
-.equipment-links {
+.equipment-section {
+  margin-bottom: 1.5rem;
+}
+
+.equipment-section h2 {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+
+/* Same mat-behind-panel treatment as recent brews on the home screen. */
+.equipment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  background: var(--color-steel-light);
+  border: 1px solid var(--color-steel);
+  border-radius: var(--radius);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    0 8px 20px rgba(0, 0, 0, 0.08);
 }
 
-.equipment-link {
-  text-align: left;
+.equipment-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
   background: var(--color-surface);
   border: 1px solid var(--color-steel);
   border-radius: var(--radius);
   box-shadow: var(--emboss-raised);
+  padding: 0.65rem 0.85rem;
+  cursor: pointer;
+}
+
+.equipment-item-name {
   font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.equipment-item-meta {
+  font-size: 0.75rem;
+  color: var(--color-ink-soft);
+  white-space: nowrap;
+}
+
+/* The add-equipment button reuses .brew-button-frame, but that frame's own
+   margin-bottom is sized for the home screen's layout below it — override
+   for the tighter spacing this section needs instead. */
+.equipment-section .brew-button-frame {
+  margin-top: 0.5rem;
+  margin-bottom: 0;
+}
+
+.equipment-empty {
+  font-size: 0.85rem;
+  color: var(--color-ink-soft);
+  padding: 0.5rem 0;
+}
+
+/* Coffee screen
+   ------------------------------------------------------------------ */
+
+.coffee-section {
+  margin-bottom: 1.5rem;
+}
+
+.coffee-section h2 {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+
+/* Same mat-behind-panel treatment as recent brews on the home screen. */
+.coffee-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: var(--color-steel-light);
+  border: 1px solid var(--color-steel);
+  border-radius: var(--radius);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    0 8px 20px rgba(0, 0, 0, 0.08);
+}
+
+.coffee-item {
+  background: var(--color-surface);
+  border: 1px solid var(--color-steel);
+  border-radius: var(--radius);
+  box-shadow: var(--emboss-raised);
+  padding: 0.65rem 0.85rem;
+  cursor: pointer;
+}
+
+.coffee-item-main {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.coffee-item-stars {
+  color: var(--color-red);
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.coffee-item-name {
+  flex: 1;
+  font-weight: 600;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.coffee-item-date {
+  font-size: 0.7rem;
+  color: var(--color-ink-soft);
+  white-space: nowrap;
+}
+
+/* inline-block (not block) so the tap target hugs the actual URL text
+   instead of stretching to the full card width — anything past the visible
+   link text should open the edit sheet, not the website. */
+.coffee-item-link {
+  display: inline-block;
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-ink-soft);
+  text-decoration: underline;
+}
+
+.coffee-empty {
+  font-size: 0.85rem;
+  color: var(--color-ink-soft);
+  padding: 0.5rem 0;
+}
+
+.coffee-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+}
+
+.coffee-pagination-status {
+  flex: 1;
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--color-ink-soft);
+}
+
+/* Same spacing override as the Equipment page's add-equipment button. */
+.coffee-section .brew-button-frame {
+  margin-top: 0.5rem;
+  margin-bottom: 0;
 }
 
 /* Bottom nav
@@ -393,9 +551,108 @@ button {
   display: flex;
 }
 
-.modal {
-  border: 1px solid #888;
-  background: #f7f7f7;
-  padding: 1rem;
-  margin: 1rem 0;
+/* Bottom sheet
+   ------------------------------------------------------------------ */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0);
+  transition: background 0.25s ease;
+  z-index: 20;
+}
+
+.modal-backdrop.open {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.modal-sheet {
+  width: 100%;
+  max-width: 26rem;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: var(--emboss-raised);
+  padding: 1.25rem 1rem calc(1.25rem + env(safe-area-inset-bottom));
+  transform: translateY(100%);
+  transition: transform 0.25s ease;
+}
+
+.modal-backdrop.open .modal-sheet {
+  transform: translateY(0);
+}
+
+/* The element the drag-to-dismiss gesture in main.js attaches pointer
+   listeners to — sized as a generous tap target (full sheet width, 2rem
+   tall), but only the small centered ::after bar is actually painted, so
+   the visible handle still looks like a thin pill. */
+.sheet-handle {
+  width: 100%;
+  height: 2rem;
+  margin-bottom: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+
+.sheet-handle::after {
+  content: "";
+  width: 2.5rem;
+  height: 0.25rem;
+  border-radius: 999px;
+  background: var(--color-steel);
+}
+
+.sheet-content h2 {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.sheet-actions {
+  margin-top: 0.5rem;
+}
+
+/* The sole remaining action reuses the home screen's brew-button look —
+   dragging the handle down is now how you back out without saving. */
+.sheet-actions .brew-button {
+  margin-bottom: 0;
+}
+
+.sheet-secondary-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.sheet-secondary-button,
+.sheet-danger-button {
+  background: var(--color-surface);
+  border: 1px solid var(--color-steel);
+  border-radius: var(--radius);
+  box-shadow: var(--emboss-raised);
+  font-weight: 600;
+}
+
+.sheet-secondary-button:active,
+.sheet-danger-button:active {
+  box-shadow: var(--emboss-sunken);
+}
+
+.sheet-secondary-button {
+  color: var(--color-ink-soft);
+}
+
+.sheet-danger-button {
+  color: var(--color-red);
+}
+
+.sheet-danger-button:active {
+  color: var(--color-red-dark);
 }

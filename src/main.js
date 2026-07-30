@@ -8,6 +8,7 @@ import { renderBrewsList } from "./views/brews.js";
 import { renderData } from "./views/data.js";
 import { renderSettings } from "./views/settings.js";
 import { renderEquipmentHome } from "./views/equipment.js";
+import { renderCoffeeHome } from "./views/coffee.js";
 
 /**
  * @typedef {(container: HTMLElement) => void | Promise<void>} ViewRender
@@ -31,15 +32,17 @@ const VIEWS = {
     hideFromTopNav: false,
   },
   bags: { label: "Bags", render: renderBagsList, hideFromTopNav: false },
+  // hideFromTopNav: superseded by the bottom nav's "Equipment" tab, which
+  // covers viewing/editing/adding grinders and brewers via its own sheets.
   grinders: {
     label: "Grinders",
     render: renderGrinders,
-    hideFromTopNav: false,
+    hideFromTopNav: true,
   },
   brewers: {
     label: "Brewers",
     render: renderBrewers,
-    hideFromTopNav: false,
+    hideFromTopNav: true,
   },
   brews: { label: "Brews", render: renderBrewsList, hideFromTopNav: false },
   data: { label: "Data", render: renderData, hideFromTopNav: false },
@@ -49,17 +52,24 @@ const VIEWS = {
     hideFromTopNav: false,
   },
   // Reachable from the bottom nav's "Equipment" tab, not the legacy top nav
-  // row — it just links out to the Grinders/Brewers tabs above.
+  // row.
   equipment: {
     label: "Equipment",
     render: renderEquipmentHome,
+    hideFromTopNav: true,
+  },
+  // Reachable from the bottom nav's "Coffee" tab — distinct from Home
+  // (which stays reachable via the app header).
+  coffee: {
+    label: "Coffee",
+    render: renderCoffeeHome,
     hideFromTopNav: true,
   },
 };
 
 const BOTTOM_NAV_ITEMS = /** @type {const} */ ([
   {
-    key: "home",
+    key: "coffee",
     label: "Coffee",
     icon: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h14v5a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5V8Z"></path><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"></path><path d="M6 2v2M10 2v2M14 2v2"></path></svg>`,
   },
@@ -89,7 +99,7 @@ async function main() {
       <nav id="nav"></nav>
       <div id="back-bar"></div>
       <div id="content"></div>
-      <div id="modal-root" hidden></div>
+      <div id="modal-root"></div>
     </div>
     <nav id="bottom-nav"></nav>
   `;
@@ -110,6 +120,81 @@ async function main() {
   let stack = [];
   /** @type {HTMLElement[]} */
   let modalContainers = [];
+
+  const SHEET_DRAG_DISMISS_THRESHOLD = 80;
+
+  /**
+   * Animates a sheet+backdrop pair closed and removes it once the closing
+   * transition finishes. Used both by the drag gesture below (which sets
+   * its own inline transform mid-drag, so the transition has to be driven
+   * explicitly rather than via the "open" class) and effectively mirrored
+   * by hideModal for the button-triggered path.
+   * @param {HTMLElement} backdrop
+   * @param {HTMLElement} sheet
+   */
+  function dismissSheet(backdrop, sheet) {
+    const index = modalContainers.indexOf(backdrop);
+    if (index !== -1) modalContainers.splice(index, 1);
+    backdrop.classList.remove("open");
+    sheet.style.transition = "transform 0.25s ease";
+    sheet.style.transform = "translateY(100%)";
+    backdrop.addEventListener("transitionend", () => backdrop.remove(), {
+      once: true,
+    });
+  }
+
+  /**
+   * Lets the user drag the sheet's handle down to dismiss it, matching the
+   * native bottom-sheet gesture — drag past the threshold and it closes
+   * like a Close/Cancel tap would; drag less than that and it snaps back.
+   * @param {HTMLElement} backdrop
+   * @param {HTMLElement} sheet
+   * @param {HTMLElement} handle
+   */
+  function setupSheetDrag(backdrop, sheet, handle) {
+    let dragging = false;
+    let startY = 0;
+
+    handle.addEventListener("pointerdown", (event) => {
+      dragging = true;
+      startY = event.clientY;
+      sheet.style.transition = "none";
+      handle.setPointerCapture(event.pointerId);
+    });
+
+    handle.addEventListener("pointermove", (event) => {
+      if (!dragging) return;
+      const deltaY = Math.max(0, event.clientY - startY);
+      sheet.style.transform = `translateY(${deltaY}px)`;
+    });
+
+    function endDrag(/** @type {PointerEvent} */ event) {
+      if (!dragging) return;
+      dragging = false;
+      const deltaY = Math.max(0, event.clientY - startY);
+
+      if (deltaY > SHEET_DRAG_DISMISS_THRESHOLD) {
+        dismissSheet(backdrop, sheet);
+        return;
+      }
+
+      sheet.style.transition = "transform 0.25s ease";
+      sheet.style.transform = "translateY(0)";
+      sheet.addEventListener(
+        "transitionend",
+        () => {
+          // Hand control back to the CSS classes now that the sheet has
+          // settled at the same position they'd put it at anyway.
+          sheet.style.transition = "";
+          sheet.style.transform = "";
+        },
+        { once: true },
+      );
+    }
+
+    handle.addEventListener("pointerup", endDrag);
+    handle.addEventListener("pointercancel", endDrag);
+  }
 
   async function renderCurrent() {
     backBar.innerHTML = "";
@@ -136,22 +221,38 @@ async function main() {
       if (stack.length > 1) stack.pop();
       await renderCurrent();
     },
-    // Each modal level gets its own persistent container, appended (never
-    // replacing what's already there) so a form underneath is never torn
-    // down or re-rendered — closing a modal (save or cancel) simply reveals
-    // it exactly as the user left it, no state to reconstruct.
+    // Each modal level gets its own persistent backdrop+sheet pair, appended
+    // (never replacing what's already there) so a form underneath is never
+    // torn down or re-rendered — closing a modal (save or cancel) simply
+    // reveals it exactly as the user left it, no state to reconstruct.
     async showModal(render) {
-      const el = document.createElement("div");
-      el.className = "modal";
-      modalRoot.append(el);
-      modalContainers.push(el);
-      modalRoot.hidden = false;
-      await render(el);
+      const backdrop = document.createElement("div");
+      backdrop.className = "modal-backdrop";
+      const sheet = document.createElement("div");
+      sheet.className = "modal-sheet";
+      const handle = document.createElement("div");
+      handle.className = "sheet-handle";
+      const sheetContent = document.createElement("div");
+      sheetContent.className = "sheet-content";
+      sheet.append(handle, sheetContent);
+      backdrop.append(sheet);
+      modalRoot.append(backdrop);
+      modalContainers.push(backdrop);
+      // Force a layout flush so the pre-transition (off-screen) state paints
+      // before "open" is added — otherwise the browser can coalesce both
+      // states into one frame and skip the slide-up transition entirely.
+      void backdrop.offsetHeight;
+      backdrop.classList.add("open");
+      setupSheetDrag(backdrop, sheet, handle);
+      await render(sheetContent);
     },
     hideModal() {
-      const el = modalContainers.pop();
-      el?.remove();
-      if (modalContainers.length === 0) modalRoot.hidden = true;
+      const backdrop = modalContainers.pop();
+      if (!backdrop) return;
+      backdrop.classList.remove("open");
+      backdrop.addEventListener("transitionend", () => backdrop.remove(), {
+        once: true,
+      });
     },
     // Renders a Yes/No dialog in the same modal layer used everywhere else,
     // so every "are you sure?" prompt (deletes, destructive imports, etc.)
@@ -204,7 +305,6 @@ async function main() {
     activeTabKey = key;
     for (const el of modalContainers) el.remove();
     modalContainers = [];
-    modalRoot.hidden = true;
     stack = [(container) => VIEWS[key].render(container, nav)];
     renderCurrent();
     for (const button of bottomNavEl.querySelectorAll("button")) {

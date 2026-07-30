@@ -10,11 +10,17 @@ const PAGE_SIZE = 10;
  *   roasterId?: string,
  *   isModal?: boolean,
  *   onSaved?: (roaster: import("../models/types.js").Roaster) => void | Promise<void>,
+ *   onDeleted?: () => void | Promise<void>,
  * }} [options]
  */
 export async function renderRoasterForm(container, nav, options = {}) {
-  const { roasterId, isModal, onSaved } = options;
+  const { roasterId, isModal, onSaved, onDeleted } = options;
   const existing = roasterId ? await db.roasters.get(roasterId) : undefined;
+
+  // Editing an existing roaster from a sheet (the Coffee page's tap-to-edit
+  // flow) skips the Cancel button in favor of the sheet's drag-to-dismiss
+  // gesture, and adds Delete — mirrors the Grinder/Brewer edit sheets.
+  const isEditSheet = isModal && roasterId;
 
   container.innerHTML = `
     <h1>${roasterId ? "Edit roaster" : "Add roaster"}</h1>
@@ -27,9 +33,28 @@ export async function renderRoasterForm(container, nav, options = {}) {
         <label for="roaster-website">Website</label>
         <input id="roaster-website" name="website" type="url" placeholder="https://" autocomplete="off" />
       </div>
-      <button type="submit">${roasterId ? "Save roaster" : "Add roaster"}</button>
-      <button type="button" id="roaster-form-cancel">Cancel</button>
+      ${
+        isEditSheet
+          ? `
+        <div class="sheet-actions">
+          <button type="submit" class="brew-button">Save roaster</button>
+        </div>
+      `
+          : `
+        <button type="submit">${roasterId ? "Save roaster" : "Add roaster"}</button>
+        <button type="button" id="roaster-form-cancel">Cancel</button>
+      `
+      }
     </form>
+    ${
+      isEditSheet
+        ? `
+      <div class="sheet-secondary-actions">
+        <button type="button" id="roaster-form-delete" class="sheet-danger-button">Delete roaster</button>
+      </div>
+    `
+        : ""
+    }
   `;
 
   const form = /** @type {HTMLFormElement} */ (
@@ -44,13 +69,28 @@ export async function renderRoasterForm(container, nav, options = {}) {
   nameInput.value = existing?.name ?? "";
   websiteInput.value = existing?.website ?? "";
 
-  const cancelButton = /** @type {HTMLButtonElement} */ (
+  const cancelButton = /** @type {HTMLButtonElement | null} */ (
     container.querySelector("#roaster-form-cancel")
   );
-  cancelButton.addEventListener("click", () => {
+  cancelButton?.addEventListener("click", () => {
     if (isModal) nav.hideModal();
     else nav.goBack();
   });
+
+  if (isEditSheet) {
+    const deleteButton = /** @type {HTMLButtonElement} */ (
+      container.querySelector("#roaster-form-delete")
+    );
+    deleteButton.addEventListener("click", async () => {
+      if (
+        !(await nav.confirm("Delete this roaster?", { confirmLabel: "Delete" }))
+      )
+        return;
+      await db.roasters.delete(roasterId);
+      nav.hideModal();
+      await onDeleted?.();
+    });
+  }
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();

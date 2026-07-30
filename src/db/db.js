@@ -154,6 +154,50 @@ export async function getRecentBags(limit) {
  */
 
 /**
+ * @typedef {Object} BagWithRating
+ * @property {Bag} bag
+ * @property {number | null} averageRating null if the bag has no brews
+ *   logged yet
+ * @property {number} brewCount
+ */
+
+/**
+ * A page of every bag, most-recently-created first, each annotated with its
+ * average brew rating — used for the Coffee page's "Recent bags" list,
+ * which (despite the name) is the full bag catalog ordered by recency, not
+ * a bounded preview. Walks the createdAt index directly, so offset/limit
+ * paginate via the index cursor rather than sorting the full set in memory.
+ * @param {Page} [page]
+ * @returns {Promise<BagWithRating[]>}
+ */
+export async function getBagsPageWithRatings({ offset = 0, limit } = {}) {
+  let collection = db.bags.orderBy("createdAt").reverse().offset(offset);
+  if (limit != null) collection = collection.limit(limit);
+  const bags = await collection.toArray();
+
+  const brews = await db.brews
+    .where("bagId")
+    .anyOf(bags.map((bag) => bag.id))
+    .toArray();
+
+  /** @type {Map<string, Brew[]>} */
+  const brewsByBagId = new Map();
+  for (const brew of brews) {
+    const bagBrews = brewsByBagId.get(brew.bagId) ?? [];
+    bagBrews.push(brew);
+    brewsByBagId.set(brew.bagId, bagBrews);
+  }
+
+  return bags.map((bag) => {
+    const bagBrews = brewsByBagId.get(bag.id) ?? [];
+    const averageRating = bagBrews.length
+      ? bagBrews.reduce((sum, brew) => sum + brew.rating, 0) / bagBrews.length
+      : null;
+    return { bag, averageRating, brewCount: bagBrews.length };
+  });
+}
+
+/**
  * Bags belonging to a roaster, most recently roasted first. Walks the
  * [roasterId+roastDate] compound index directly, so offset/limit paginate
  * via the index cursor rather than sorting the full result set in memory.
@@ -227,6 +271,66 @@ export async function getBestRatedBagsForRoaster(
     .filter((entry) => entry.brewCount >= minBrews)
     .sort((a, b) => b.averageRating - a.averageRating)
     .slice(0, limit);
+}
+
+/**
+ * @typedef {Object} RatedRoaster
+ * @property {Roaster} roaster
+ * @property {number} averageRating
+ * @property {number} brewCount
+ */
+
+/**
+ * A page of every roaster ranked by average brew rating across all of their
+ * bags combined, highest first — used for the Coffee page's "Top Roasters"
+ * list, which is the full roaster catalog, not a bounded leaderboard.
+ * Unrated roasters (no logged brews yet) are included with an average of 0
+ * rather than excluded, so a newly-added roaster shows up immediately
+ * instead of being invisible until it earns enough brews. Ties (including
+ * every unrated roaster, all tied at 0) break alphabetically by name.
+ * Requires loading every roaster/bag/brew to compute the ranking regardless
+ * of page — fine at hobbyist scale, same tradeoff as
+ * getBestRatedBagsForRoaster above.
+ * @param {Page} [page]
+ * @returns {Promise<RatedRoaster[]>}
+ */
+export async function getRoastersRankedByRating({ offset = 0, limit } = {}) {
+  const [roasters, bags, brews] = await Promise.all([
+    db.roasters.toArray(),
+    db.bags.toArray(),
+    db.brews.toArray(),
+  ]);
+
+  const roasterIdByBagId = new Map(bags.map((bag) => [bag.id, bag.roasterId]));
+
+  /** @type {Map<string, Brew[]>} */
+  const brewsByRoasterId = new Map();
+  for (const brew of brews) {
+    const roasterId = roasterIdByBagId.get(brew.bagId);
+    if (!roasterId) continue;
+    const roasterBrews = brewsByRoasterId.get(roasterId) ?? [];
+    roasterBrews.push(brew);
+    brewsByRoasterId.set(roasterId, roasterBrews);
+  }
+
+  const ranked = roasters
+    .map((roaster) => {
+      const roasterBrews = brewsByRoasterId.get(roaster.id) ?? [];
+      const averageRating = roasterBrews.length
+        ? roasterBrews.reduce((sum, brew) => sum + brew.rating, 0) /
+          roasterBrews.length
+        : 0;
+      return { roaster, averageRating, brewCount: roasterBrews.length };
+    })
+    .sort(
+      (a, b) =>
+        b.averageRating - a.averageRating ||
+        a.roaster.name.localeCompare(b.roaster.name),
+    );
+
+  return limit != null
+    ? ranked.slice(offset, offset + limit)
+    : ranked.slice(offset);
 }
 
 /**
