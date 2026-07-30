@@ -509,6 +509,50 @@ button {
   margin-bottom: 0;
 }
 
+/* Settings screen
+   ------------------------------------------------------------------ */
+
+.settings-section {
+  margin-bottom: 1.5rem;
+}
+
+.settings-section h2 {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+
+/* Same raised-card treatment as a single Recent Brew / Equipment item. */
+.settings-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-steel);
+  border-radius: var(--radius);
+  box-shadow: var(--emboss-raised);
+  padding: 1rem;
+}
+
+.settings-card h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.settings-card p {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--color-ink-soft);
+}
+
+/* The brew-button is meant to sit proud of a gray mat elsewhere (its own
+   margin-bottom accounts for that) — here it's just one control inside an
+   already-white card, so drop the spacing meant for that other context. */
+.settings-card .brew-button {
+  margin-bottom: 0.75rem;
+}
+
 /* Bottom nav
    ------------------------------------------------------------------ */
 

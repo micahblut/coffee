@@ -128,9 +128,8 @@ export async function renderCoffeeHome(container, nav) {
 
     for (const { bag, averageRating } of entries) {
       const item = document.createElement("li");
-      // Tapping a bag doesn't do anything yet, but it's styled as tappable
-      // since that's coming next.
       item.className = "coffee-item";
+      item.dataset.bagId = bag.id;
 
       const main = document.createElement("div");
       main.className = "coffee-item-main";
@@ -238,6 +237,28 @@ export async function renderCoffeeHome(container, nav) {
         isModal: true,
         onSaved: async () => {
           nav.hideModal();
+          bagsOffset = 0;
+          await renderRecentBags();
+        },
+      }),
+    );
+  });
+
+  recentBagsList.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element)) return;
+    const item = event.target.closest("[data-bag-id]");
+    const bagId = /** @type {HTMLElement | null} */ (item)?.dataset.bagId;
+    if (!bagId) return;
+
+    nav.showModal((sheet) =>
+      renderBagForm(sheet, nav, {
+        bagId,
+        isModal: true,
+        onSaved: async () => {
+          nav.hideModal();
+          await renderRecentBags();
+        },
+        onDeleted: async () => {
           bagsOffset = 0;
           await renderRecentBags();
         },

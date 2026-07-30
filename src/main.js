@@ -5,7 +5,6 @@ import { renderBagsList } from "./views/bags.js";
 import { renderGrinders } from "./views/grinders.js";
 import { renderBrewers } from "./views/brewers.js";
 import { renderBrewsList } from "./views/brews.js";
-import { renderData } from "./views/data.js";
 import { renderSettings } from "./views/settings.js";
 import { renderEquipmentHome } from "./views/equipment.js";
 import { renderCoffeeHome } from "./views/coffee.js";
@@ -26,12 +25,14 @@ const VIEWS = {
   // hideFromTopNav: the app header (built below) is the tap target back to
   // home now, so it doesn't also need a slot in the top nav row.
   home: { label: "Home", render: renderHome, hideFromTopNav: true },
+  // hideFromTopNav: superseded by the bottom nav's "Coffee" tab, which
+  // covers viewing/editing/adding roasters and bags via its own sheets.
   roasters: {
     label: "Roasters",
     render: renderRoastersList,
-    hideFromTopNav: false,
+    hideFromTopNav: true,
   },
-  bags: { label: "Bags", render: renderBagsList, hideFromTopNav: false },
+  bags: { label: "Bags", render: renderBagsList, hideFromTopNav: true },
   // hideFromTopNav: superseded by the bottom nav's "Equipment" tab, which
   // covers viewing/editing/adding grinders and brewers via its own sheets.
   grinders: {
@@ -45,7 +46,8 @@ const VIEWS = {
     hideFromTopNav: true,
   },
   brews: { label: "Brews", render: renderBrewsList, hideFromTopNav: false },
-  data: { label: "Data", render: renderData, hideFromTopNav: false },
+  // hideFromTopNav: the Settings page (below) now includes a Data section
+  // covering import/export, so the standalone Data tab is redundant.
   settings: {
     label: "Settings",
     render: renderSettings,

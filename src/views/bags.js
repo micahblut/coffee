@@ -30,14 +30,20 @@ export function formatBagDetails(bag) {
  *   bagId?: string,
  *   isModal?: boolean,
  *   onSaved?: (bag: import("../models/types.js").Bag) => void | Promise<void>,
+ *   onDeleted?: () => void | Promise<void>,
  * }} [options]
  */
 export async function renderBagForm(container, nav, options = {}) {
-  const { bagId, isModal, onSaved } = options;
+  const { bagId, isModal, onSaved, onDeleted } = options;
   const [roasters, existing] = await Promise.all([
     db.roasters.orderBy("name").toArray(),
     bagId ? db.bags.get(bagId) : undefined,
   ]);
+
+  // Editing an existing bag from a sheet (the Coffee page's tap-to-edit
+  // flow) skips the Cancel button in favor of the sheet's drag-to-dismiss
+  // gesture, and adds Delete — mirrors the Roaster/Grinder/Brewer sheets.
+  const isEditSheet = isModal && bagId;
 
   container.innerHTML = `
     <h1>${bagId ? "Edit bag" : "Add bag"}</h1>
@@ -76,9 +82,28 @@ export async function renderBagForm(container, nav, options = {}) {
         <label for="bag-weight">Weight (g)</label>
         <input id="bag-weight" name="weightGrams" type="number" min="0" autocomplete="off" />
       </div>
-      <button type="submit">${bagId ? "Save bag" : "Add bag"}</button>
-      <button type="button" id="bag-form-cancel">Cancel</button>
+      ${
+        isEditSheet
+          ? `
+        <div class="sheet-actions">
+          <button type="submit" class="brew-button">Save bag</button>
+        </div>
+      `
+          : `
+        <button type="submit">${bagId ? "Save bag" : "Add bag"}</button>
+        <button type="button" id="bag-form-cancel">Cancel</button>
+      `
+      }
     </form>
+    ${
+      isEditSheet
+        ? `
+      <div class="sheet-secondary-actions">
+        <button type="button" id="bag-form-delete" class="sheet-danger-button">Delete bag</button>
+      </div>
+    `
+        : ""
+    }
   `;
 
   const roasterSelect = /** @type {HTMLSelectElement} */ (
@@ -122,13 +147,26 @@ export async function renderBagForm(container, nav, options = {}) {
   weightInput.value =
     existing?.weightGrams != null ? String(existing.weightGrams) : "";
 
-  const cancelButton = /** @type {HTMLButtonElement} */ (
+  const cancelButton = /** @type {HTMLButtonElement | null} */ (
     container.querySelector("#bag-form-cancel")
   );
-  cancelButton.addEventListener("click", () => {
+  cancelButton?.addEventListener("click", () => {
     if (isModal) nav.hideModal();
     else nav.goBack();
   });
+
+  if (isEditSheet) {
+    const deleteButton = /** @type {HTMLButtonElement} */ (
+      container.querySelector("#bag-form-delete")
+    );
+    deleteButton.addEventListener("click", async () => {
+      if (!(await nav.confirm("Delete this bag?", { confirmLabel: "Delete" })))
+        return;
+      await db.bags.delete(bagId);
+      nav.hideModal();
+      await onDeleted?.();
+    });
+  }
 
   const addRoasterButton = /** @type {HTMLButtonElement} */ (
     container.querySelector("#add-roaster-inline")
