@@ -36,12 +36,17 @@ const BOTTOM_NAV_ITEMS = /** @type {const} */ ([
   {
     key: "coffee",
     label: "Coffee",
+    // Same glyph as src/assets/favicon.svg (the site's favicon) — no build
+    // step to share the source between them, so update both if this icon
+    // changes.
     icon: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h14v5a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5V8Z"></path><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"></path><path d="M6 2v2M10 2v2M14 2v2"></path></svg>`,
   },
   {
     key: "equipment",
     label: "Equipment",
-    icon: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 1 5.4-5.4L15 12l-3-3 2.7-2.7Z"></path></svg>`,
+    // A top-down portafilter: the round filter basket, its two locking
+    // "ears" at the rim, and the handle angling away from it.
+    icon: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6"></circle><path d="M4.5 4.5 3 3"></path><path d="M13.5 4.5 15 3"></path><path d="M13.5 13.5 20 20"></path></svg>`,
   },
   {
     key: "settings",

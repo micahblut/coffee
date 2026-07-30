@@ -7,7 +7,8 @@ import { renderGrinderEditSheet } from "./grinders.js";
 import { renderBrewerEditSheet } from "./brewers.js";
 
 const PENCIL_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>`;
-const MARK_CLEANED_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
+// Lucide's "wand-sparkles" icon.
+const MARK_CLEANED_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z"></path><path d="m14 7 3 3"></path><path d="M5 6v4"></path><path d="M19 14v4"></path><path d="M10 2v2"></path><path d="M7 8H3"></path><path d="M21 16h-4"></path><path d="M11 3H9"></path></svg>`;
 
 /**
  * @param {import("../models/types.js").Grinder | import("../models/types.js").Brewer} equipment
@@ -77,6 +78,11 @@ export async function renderEquipmentHome(container, nav) {
       const trailing = document.createElement("span");
       trailing.className = "equipment-item-trailing";
 
+      const meta = document.createElement("span");
+      meta.className = "equipment-item-meta";
+      meta.textContent = formatLastCleaned(grinder);
+      trailing.append(meta);
+
       const markCleanedButton = document.createElement("button");
       markCleanedButton.type = "button";
       markCleanedButton.className = "equipment-item-clean-button";
@@ -84,11 +90,6 @@ export async function renderEquipmentHome(container, nav) {
       markCleanedButton.setAttribute("aria-label", "Mark cleaned");
       markCleanedButton.innerHTML = MARK_CLEANED_ICON;
       trailing.append(markCleanedButton);
-
-      const meta = document.createElement("span");
-      meta.className = "equipment-item-meta";
-      meta.textContent = formatLastCleaned(grinder);
-      trailing.append(meta);
 
       const editIcon = document.createElement("span");
       editIcon.className = "equipment-item-edit-icon";
@@ -125,6 +126,11 @@ export async function renderEquipmentHome(container, nav) {
       const trailing = document.createElement("span");
       trailing.className = "equipment-item-trailing";
 
+      const meta = document.createElement("span");
+      meta.className = "equipment-item-meta";
+      meta.textContent = formatLastCleaned(brewer);
+      trailing.append(meta);
+
       const markCleanedButton = document.createElement("button");
       markCleanedButton.type = "button";
       markCleanedButton.className = "equipment-item-clean-button";
@@ -132,11 +138,6 @@ export async function renderEquipmentHome(container, nav) {
       markCleanedButton.setAttribute("aria-label", "Mark cleaned");
       markCleanedButton.innerHTML = MARK_CLEANED_ICON;
       trailing.append(markCleanedButton);
-
-      const meta = document.createElement("span");
-      meta.className = "equipment-item-meta";
-      meta.textContent = formatLastCleaned(brewer);
-      trailing.append(meta);
 
       const editIcon = document.createElement("span");
       editIcon.className = "equipment-item-edit-icon";
