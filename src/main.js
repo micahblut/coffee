@@ -85,10 +85,12 @@ async function main() {
 
   app.innerHTML = `
     <button type="button" id="app-header">Caffè Quaderno</button>
-    <nav id="nav"></nav>
-    <div id="back-bar"></div>
-    <div id="content"></div>
-    <div id="modal-root" hidden></div>
+    <div id="app-frame">
+      <nav id="nav"></nav>
+      <div id="back-bar"></div>
+      <div id="content"></div>
+      <div id="modal-root" hidden></div>
+    </div>
     <nav id="bottom-nav"></nav>
   `;
   const appHeader = /** @type {HTMLButtonElement} */ (

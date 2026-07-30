@@ -26,7 +26,7 @@ export async function renderHome(container, nav) {
   let month = today.getMonth();
 
   container.innerHTML = `
-    <section class="calendar-card" id="calendar"></section>
+    <section class="calendar-shell" id="calendar"></section>
     <button type="button" id="brew-button" class="brew-button">Brew</button>
     <section class="recent-brews">
       <h2>Recent brews</h2>
@@ -58,12 +58,14 @@ export async function renderHome(container, nav) {
       year === today.getFullYear() && month === today.getMonth();
 
     calendar.innerHTML = `
-      <div id="calendar-header">
-        <button type="button" id="calendar-prev" class="calendar-nav-button" aria-label="Previous month">${CHEVRON_LEFT}</button>
-        <span id="calendar-month-label"></span>
-        <button type="button" id="calendar-next" class="calendar-nav-button" aria-label="Next month">${CHEVRON_RIGHT}</button>
+      <button type="button" id="calendar-prev" class="calendar-nav-button" aria-label="Previous month">${CHEVRON_LEFT}</button>
+      <div class="calendar-card">
+        <div id="calendar-header">
+          <span id="calendar-month-label"></span>
+        </div>
+        <div id="calendar-grid"></div>
       </div>
-      <div id="calendar-grid"></div>
+      <button type="button" id="calendar-next" class="calendar-nav-button" aria-label="Next month">${CHEVRON_RIGHT}</button>
     `;
 
     const monthLabelEl = /** @type {HTMLElement} */ (

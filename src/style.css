@@ -7,7 +7,7 @@
 }
 
 :root {
-  --color-bg: #dccabe;
+  --color-bg: #dcd2c4;
   --color-surface: #ffffff;
   --color-steel: #dcdedf;
   --color-steel-dark: #aeb3b6;
@@ -22,7 +22,6 @@
     0 4px 12px rgba(0, 0, 0, 0.05);
   --bottom-nav-height: 4.25rem;
   --body-padding-x: 1rem;
-  --body-padding-top: 1.5rem;
 }
 
 * {
@@ -30,10 +29,7 @@
 }
 
 body {
-  max-width: 26rem;
-  margin: 0 auto;
-  padding: var(--body-padding-top) var(--body-padding-x)
-    calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 1.5rem);
+  margin: 0;
   font-family:
     system-ui,
     -apple-system,
@@ -42,6 +38,16 @@ body {
   background: var(--color-bg);
   color: var(--color-ink);
   min-height: 100vh;
+}
+
+/* The mobile-column constraint lives here rather than on body, so
+   #app-header (a sibling of this frame) can span the full page width
+   instead of just this centered column. */
+#app-frame {
+  max-width: 26rem;
+  margin: 0 auto;
+  padding: 1.5rem var(--body-padding-x)
+    calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 1.5rem);
 }
 
 form div {
@@ -88,13 +94,11 @@ button {
   display: block;
   width: 100%;
   min-height: 0;
+  margin: 0;
+  padding: calc(1rem + env(safe-area-inset-top)) var(--body-padding-x) 1rem;
   background: var(--color-ink);
   color: var(--color-red);
   border: none;
-  margin: calc(-1 * var(--body-padding-top)) calc(-1 * var(--body-padding-x))
-    1.5rem;
-  padding: 1rem var(--body-padding-x)
-    calc(1rem + env(safe-area-inset-top));
   font-family: "Afacad Flux", system-ui, sans-serif;
   font-weight: 700;
   font-size: 1.4rem;
@@ -110,18 +114,26 @@ button {
 /* Home screen
    ------------------------------------------------------------------ */
 
+.calendar-shell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .calendar-card {
+  flex: 1;
+  min-width: 0;
   background: var(--color-surface);
   border: 1px solid var(--color-steel);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
-  padding: 0.75rem 0.85rem;
+  padding: 0.75rem 0.6rem;
 }
 
 #calendar-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   margin-bottom: 0.5rem;
 }
 
@@ -133,26 +145,19 @@ button {
   color: var(--color-ink-soft);
 }
 
-/* Styled after the espresso machine's rotary dials — a knurled grip ring
-   (the conic gradient) around a solid recessed face. */
+/* Styled after the espresso machine's dial rings — a silver bezel on a
+   white face, with the machine's red used for the indicator/caret. */
 .calendar-nav-button {
-  position: relative;
-  width: 2rem;
-  height: 2rem;
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
   min-height: 0;
   padding: 0;
   border-radius: 50%;
-  border: none;
-  background: repeating-conic-gradient(
-    from 0deg,
-    #313234 0deg 6deg,
-    #16161a 6deg 12deg
-  );
-  box-shadow:
-    inset 0 0 0 0.3rem #1a1b1d,
-    inset 0 0 0.4rem rgba(0, 0, 0, 0.6),
-    0 2px 3px rgba(0, 0, 0, 0.3);
-  color: #e9e5df;
+  border: 3px solid var(--color-ink);
+  background: #ffffff;
+  color: var(--color-red);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -202,20 +207,15 @@ button {
   font-weight: 700;
 }
 
-.calendar-day.has-brew::after {
-  content: "";
-  position: absolute;
-  bottom: 0.2rem;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--color-red);
+.calendar-day.has-brew {
+  border: 2px solid var(--color-red);
+  border-radius: 0.3rem;
 }
 
-.calendar-day.is-today.has-brew::after {
-  background: #fff;
+.calendar-day.is-today.has-brew {
+  background: var(--color-ink);
+  color: #fff;
+  border-radius: 0.3rem;
 }
 
 .brew-button {
