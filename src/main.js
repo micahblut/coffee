@@ -64,7 +64,7 @@ async function main() {
   }
 
   app.innerHTML = `
-    <button type="button" id="app-header">Caffè Quaderno</button>
+    <button type="button" id="app-header">caffè quotidiano</button>
     <div id="app-frame">
       <div id="back-bar"></div>
       <div id="content"></div>
@@ -75,6 +75,46 @@ async function main() {
   const appHeader = /** @type {HTMLButtonElement} */ (
     app.querySelector("#app-header")
   );
+
+  // The header's script font needs a lot more letter-spacing than any other
+  // text in the app to read well — rather than a fixed value (which would
+  // look too tight on a wide screen or too loose on a narrow one, since the
+  // header spans the full viewport width), this measures the text's natural
+  // width via canvas and computes whatever per-letter spacing makes it fill
+  // 80% of the header's content width, leaving a 10% margin on each side.
+  let headerSpacingCanvasContext =
+    /** @type {CanvasRenderingContext2D | null} */ (null);
+  function updateHeaderLetterSpacing() {
+    const text = appHeader.textContent ?? "";
+    if (text.length < 2) return;
+
+    headerSpacingCanvasContext ??= document.createElement("canvas").getContext("2d");
+    if (!headerSpacingCanvasContext) return;
+
+    const style = getComputedStyle(appHeader);
+    headerSpacingCanvasContext.font =
+      `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const naturalWidth = headerSpacingCanvasContext.measureText(text).width;
+
+    const contentWidth =
+      appHeader.clientWidth -
+      parseFloat(style.paddingLeft) -
+      parseFloat(style.paddingRight);
+    const targetWidth = contentWidth * 0.8;
+
+    const gapCount = text.length - 1;
+    const extraSpacing = Math.max(
+      0,
+      (targetWidth - naturalWidth) / gapCount,
+    );
+    appHeader.style.letterSpacing = `${extraSpacing}px`;
+  }
+  document.fonts
+    .load(`400 2.2rem Caveat`, appHeader.textContent ?? "")
+    .catch(() => {})
+    .then(updateHeaderLetterSpacing);
+  window.addEventListener("resize", updateHeaderLetterSpacing);
+
   const backBar = /** @type {HTMLElement} */ (app.querySelector("#back-bar"));
   const content = /** @type {HTMLElement} */ (app.querySelector("#content"));
   const modalRoot = /** @type {HTMLElement} */ (

@@ -77,19 +77,11 @@ export async function renderBrewSheet(container, nav, options = {}) {
     db.brewers.orderBy("name").toArray(),
   ]);
 
-  if (grinders.length === 0) {
+  if (grinders.length === 0 || brewers.length === 0) {
     container.innerHTML = "";
     const message = document.createElement("p");
     message.textContent =
-      "Add a grinder first before logging a brew (see the Grinders tab).";
-    container.append(message);
-    return;
-  }
-  if (brewers.length === 0) {
-    container.innerHTML = "";
-    const message = document.createElement("p");
-    message.textContent =
-      "Add a brewer first before logging a brew (see the Brewers tab).";
+      "Set up your equipment before you brew.";
     container.append(message);
     return;
   }
@@ -210,8 +202,9 @@ export async function renderBrewSheet(container, nav, options = {}) {
     </details>
   `
     : `
+    <label>Bag</label>
     <div id="bag-quick-picks" class="bag-quick-picks"></div>
-    <details class="form-details">
+    <details id="brew-bag-details" class="form-details">
       <summary>Choose a different bag</summary>
       <div>
         <label for="brew-bag">Bag</label>
@@ -255,6 +248,7 @@ export async function renderBrewSheet(container, nav, options = {}) {
           </div>
         </div>
       </section>
+      <p id="brew-form-error" class="form-error"></p>
       <div class="sheet-actions">
         <button type="submit" class="brew-button">Save</button>
       </div>
@@ -502,9 +496,16 @@ export async function renderBrewSheet(container, nav, options = {}) {
   const form = /** @type {HTMLFormElement} */ (
     container.querySelector("#brew-form")
   );
+  const errorEl = /** @type {HTMLElement} */ (
+    container.querySelector("#brew-form-error")
+  );
+  const bagDetailsEl = /** @type {HTMLDetailsElement | null} */ (
+    container.querySelector("#brew-bag-details")
+  );
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    errorEl.textContent = "";
 
     const data = new FormData(form);
     const bagId = String(data.get("bagId") ?? "");
@@ -523,18 +524,27 @@ export async function renderBrewSheet(container, nav, options = {}) {
       .trim()
       .slice(0, 256);
 
-    if (
-      !bagId ||
-      !grinderId ||
-      !brewerId ||
-      !brewDate ||
-      !grindSize ||
-      !extractionTimeSeconds ||
-      !rating
-    ) {
+    // The bag quick-picks and star rating have no native browser validation
+    // UI of their own (unlike a plain required <select>/<input>), so a
+    // missing one needs its own visible feedback — otherwise the form just
+    // silently does nothing on submit.
+    if (!bagId) {
+      errorEl.textContent = "Select a bag before saving.";
+      if (bagDetailsEl) bagDetailsEl.open = true;
       return;
     }
-    if (brewDate > todayDateInputValue()) return;
+    if (!rating) {
+      errorEl.textContent = "Select a rating before saving.";
+      return;
+    }
+    if (!grinderId || !brewerId || !brewDate || !grindSize || !extractionTimeSeconds) {
+      errorEl.textContent = "Fill in the missing brew details before saving.";
+      return;
+    }
+    if (brewDate > todayDateInputValue()) {
+      errorEl.textContent = "Brew date can't be in the future.";
+      return;
+    }
 
     const fields = {
       bagId,

@@ -1,10 +1,4 @@
-import {
-  db,
-  newId,
-  setDefaultGrinderId,
-  deleteGrinder,
-  markGrinderCleaned,
-} from "../db/db.js";
+import { db, newId, setDefaultGrinderId, deleteGrinder } from "../db/db.js";
 import {
   parseDateInputValue,
   dateToInputValue,
@@ -29,9 +23,10 @@ export function formatCleaningStatus(status) {
  * Add/edit form for a single grinder, meant to be rendered inside a bottom
  * sheet (via nav.showModal) from the Equipment page. This only ever handles
  * one record at a time. Pass `grinder` as
- * undefined to create a new one instead of editing an existing one —
- * mark-cleaned/delete only make sense for an existing record, so they're
- * omitted in create mode.
+ * undefined to create a new one instead of editing an existing one — delete
+ * only makes sense for an existing record, so it's omitted in create mode.
+ * Marking a grinder cleaned happens from the Equipment list's own icon or by
+ * editing the Last cleaned date here, not a dedicated button.
  * @param {HTMLElement} container
  * @param {import("../main.js").Nav} nav
  * @param {import("../models/types.js").Grinder | undefined} grinder
@@ -71,7 +66,6 @@ export async function renderGrinderEditSheet(container, nav, grinder, onSaved) {
       grinder
         ? `
       <div class="sheet-secondary-actions">
-        <button type="button" id="grinder-edit-mark-cleaned" class="sheet-secondary-button">Mark cleaned</button>
         <button type="button" id="grinder-edit-delete" class="detail-delete-button">Delete grinder</button>
       </div>
     `
@@ -152,15 +146,6 @@ export async function renderGrinderEditSheet(container, nav, grinder, onSaved) {
   });
 
   if (grinder) {
-    const markCleanedButton = /** @type {HTMLButtonElement} */ (
-      container.querySelector("#grinder-edit-mark-cleaned")
-    );
-    markCleanedButton.addEventListener("click", async () => {
-      await markGrinderCleaned(grinder.id);
-      lastCleanedInput.value = dateToInputValue(startOfToday());
-      await onSaved();
-    });
-
     const deleteButton = /** @type {HTMLButtonElement} */ (
       container.querySelector("#grinder-edit-delete")
     );

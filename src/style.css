@@ -6,6 +6,14 @@
   src: url("./assets/fonts/AfacadFlux-Variable.woff2") format("woff2");
 }
 
+@font-face {
+  font-family: "Caveat";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("./assets/fonts/Caveat-Variable.woff2") format("woff2");
+}
+
 :root {
   --color-bg: #ffffff;
   --color-surface: #ffffff;
@@ -99,6 +107,13 @@ textarea:focus {
   outline-offset: 1px;
 }
 
+/* A short intro line under a page's h1, explaining what the page is for. */
+.page-help-text {
+  margin: 0 0 1.5rem;
+  font-size: 0.85rem;
+  color: var(--color-ink-soft);
+}
+
 #recent-bags {
   display: flex;
   gap: 0.5rem;
@@ -164,14 +179,12 @@ button {
   margin: 0;
   padding: calc(1rem + env(safe-area-inset-top)) var(--body-padding-x) 1rem;
   background: var(--color-ink);
-  color: var(--color-red);
+  color: var(--color-surface);
   border: none;
   box-shadow: var(--emboss-raised-dark);
-  font-family: "Afacad Flux", system-ui, sans-serif;
-  font-weight: 700;
-  font-size: 1.4rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-family: "Caveat", "Afacad Flux", system-ui, sans-serif;
+  font-weight: 400;
+  font-size: 2.2rem;
   text-align: center;
 }
 
@@ -921,19 +934,6 @@ button {
   margin-top: 0.75rem;
 }
 
-.sheet-secondary-button {
-  background: var(--color-surface);
-  border: 1px solid var(--color-steel);
-  border-radius: var(--radius);
-  box-shadow: var(--emboss-raised);
-  font-weight: 600;
-  color: var(--color-ink-soft);
-}
-
-.sheet-secondary-button:active {
-  box-shadow: var(--emboss-sunken);
-}
-
 /* A persistent unit/context hint next to a field — unlike a placeholder,
    this doesn't disappear once the field is focused or filled in. */
 .field-hint {
@@ -941,6 +941,18 @@ button {
   margin-top: 0.25rem;
   font-size: 0.8rem;
   color: var(--color-ink-soft);
+}
+
+/* Feedback for why a submit was silently rejected — several required
+   fields here (the bag quick-picks, the star rating) have no native browser
+   validation UI of their own, so without this a missing one just fails to
+   save with no indication why. */
+.form-error {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-red);
+  text-align: center;
 }
 
 /* Add brew sheet

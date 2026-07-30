@@ -30,6 +30,7 @@ function formatLastCleaned(equipment) {
 export async function renderEquipmentHome(container, nav) {
   container.innerHTML = `
     <h1>Equipment</h1>
+    <p class="page-help-text">Add your brewing equipment here. You can configure your default brewing setup in Settings.</p>
     <section class="equipment-section">
       <h2>Grinders</h2>
       <ul id="grinder-equipment-list" class="equipment-list"></ul>

@@ -39,7 +39,7 @@ export async function renderSettings(container, nav) {
     <section class="settings-section">
       <h2>Daily brew settings</h2>
       <div class="settings-card">
-        <p>These defaults pre-fill the brew form — leave any blank to not pre-fill it.</p>
+        <p>Set any defaults to pre-fill the brew form - you can always change them when logging a brew.</p>
         <form id="settings-form">
           <div>
             <label for="settings-grinder">Default grinder</label>

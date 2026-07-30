@@ -1,10 +1,4 @@
-import {
-  db,
-  newId,
-  setDefaultBrewerId,
-  deleteBrewer,
-  markBrewerCleaned,
-} from "../db/db.js";
+import { db, newId, setDefaultBrewerId, deleteBrewer } from "../db/db.js";
 import {
   parseDateInputValue,
   dateToInputValue,
@@ -15,9 +9,10 @@ import {
  * Add/edit form for a single brewer, meant to be rendered inside a bottom
  * sheet (via nav.showModal) from the Equipment page. This only ever handles
  * one record at a time. Pass `brewer` as
- * undefined to create a new one instead of editing an existing one —
- * mark-cleaned/delete only make sense for an existing record, so they're
- * omitted in create mode.
+ * undefined to create a new one instead of editing an existing one — delete
+ * only makes sense for an existing record, so it's omitted in create mode.
+ * Marking a brewer cleaned happens from the Equipment list's own icon or by
+ * editing the Last cleaned date here, not a dedicated button.
  * @param {HTMLElement} container
  * @param {import("../main.js").Nav} nav
  * @param {import("../models/types.js").Brewer | undefined} brewer
@@ -57,7 +52,6 @@ export async function renderBrewerEditSheet(container, nav, brewer, onSaved) {
       brewer
         ? `
       <div class="sheet-secondary-actions">
-        <button type="button" id="brewer-edit-mark-cleaned" class="sheet-secondary-button">Mark cleaned</button>
         <button type="button" id="brewer-edit-delete" class="detail-delete-button">Delete brewer</button>
       </div>
     `
@@ -138,15 +132,6 @@ export async function renderBrewerEditSheet(container, nav, brewer, onSaved) {
   });
 
   if (brewer) {
-    const markCleanedButton = /** @type {HTMLButtonElement} */ (
-      container.querySelector("#brewer-edit-mark-cleaned")
-    );
-    markCleanedButton.addEventListener("click", async () => {
-      await markBrewerCleaned(brewer.id);
-      lastCleanedInput.value = dateToInputValue(startOfToday());
-      await onSaved();
-    });
-
     const deleteButton = /** @type {HTMLButtonElement} */ (
       container.querySelector("#brewer-edit-delete")
     );
