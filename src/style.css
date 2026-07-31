@@ -41,6 +41,10 @@
     inset 0 1px 0 rgba(0, 0, 0, 0.5);
   --bottom-nav-height: 4.25rem;
   --body-padding-x: 1rem;
+  /* Overridden inside the desktop phone-frame media query below, where it
+     stands in for the real env(safe-area-inset-top) a notched phone would
+     report — this app's actual insets are always 0 in a desktop browser. */
+  --phone-notch-clearance: 0px;
 }
 
 * {
@@ -67,6 +71,135 @@ body {
   margin: 0 auto;
   padding: 1.5rem var(--body-padding-x)
     calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + 1.5rem);
+}
+
+/* Desktop phone frame
+   ------------------------------------------------------------------ */
+
+/* On a real phone (or a narrow/touch viewport) every rule below is inert —
+   #phone-mat/#phone-frame/#phone-notch stay unstyled wrappers and #app fills
+   the page exactly as it always has. Past the breakpoint, #app is rendered
+   at native phone dimensions and dropped inside a bezel, rather than a
+   desktop layout getting scaled down — this app has no desktop layout, so
+   there's nothing to shrink; a real phone viewport is the actual content. */
+@media (min-width: 700px) and (pointer: fine) {
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    display: flex;
+    min-height: 100vh;
+  }
+
+  #phone-mat {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1rem;
+    background: radial-gradient(ellipse 70% 55% at 50% 42%, #d5d8da, #b7bbbe);
+  }
+
+  /* A graphite metal tone, deliberately not --color-ink — the header and
+     bottom nav already use that near-black for the "screen", so the bezel
+     needs its own distinct color or the phone reads as one flat slab. */
+  #phone-frame {
+    position: relative;
+    width: 390px;
+    height: 844px;
+    padding: 9px;
+    background: #393a3e;
+    border-radius: 3.25rem;
+    box-shadow:
+      0 45px 70px -25px rgba(0, 0, 0, 0.5),
+      0 15px 25px -10px rgba(0, 0, 0, 0.35),
+      inset 0 0 0 1.5px rgba(255, 255, 255, 0.12);
+  }
+
+  /* Power button (right) and volume rocker (left) — purely decorative
+     nubs, just enough to read as a phone in silhouette. */
+  #phone-frame::before,
+  #phone-frame::after {
+    content: "";
+    position: absolute;
+    background: #242528;
+  }
+
+  #phone-frame::before {
+    top: 180px;
+    right: -3px;
+    width: 3px;
+    height: 90px;
+    border-radius: 0 2px 2px 0;
+  }
+
+  #phone-frame::after {
+    top: 150px;
+    left: -3px;
+    width: 3px;
+    height: 130px;
+    border-radius: 2px 0 0 2px;
+  }
+
+  /* The camera cutout. It overlaps the top of #app rather than the bezel —
+     that's where a real cutout sits — so content clearance has to come from
+     --phone-notch-clearance instead of just leaving room in the bezel. */
+  #phone-notch {
+    position: absolute;
+    top: 17px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 6.5rem;
+    height: 1.6rem;
+    background: #000;
+    border-radius: 1rem;
+    z-index: 40;
+  }
+
+  #app {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    border-radius: 2.5rem;
+    isolation: isolate;
+    /* Otherwise any gap between #app's own children reveals the bezel
+       color behind it instead of the page's normal white surface — on a
+       real phone #app just sits directly on the white <body>, so this
+       never came up until #app got a non-white ancestor. */
+    background: var(--color-bg);
+    /* A mobile browser's own scrollbar is a thin auto-hiding overlay, not
+       the ~15px opaque gutter a nested overflow:auto div gets by default —
+       "thin" plus the matching ::-webkit-scrollbar-* rules below get this
+       div closer to that look instead of looking like a desktop page. */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.22) transparent;
+    /* Establishes #app as the containing block for its position:fixed
+       descendants (#bottom-nav, .modal-backdrop) — without this they'd
+       pin themselves to the real browser viewport and float outside the
+       phone frame instead of the screen they're meant to belong to. */
+    transform: translateZ(0);
+  }
+
+  #app::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  #app::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  #app::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.22);
+    border-radius: 999px;
+  }
+
+  :root {
+    --phone-notch-clearance: 1.6rem;
+  }
 }
 
 form div {
@@ -177,7 +310,8 @@ button {
   width: 100%;
   min-height: 0;
   margin: 0;
-  padding: calc(1rem + env(safe-area-inset-top)) var(--body-padding-x) 1rem;
+  padding: calc(1rem + env(safe-area-inset-top) + var(--phone-notch-clearance))
+    var(--body-padding-x) 1rem;
   background: var(--color-ink);
   color: var(--color-surface);
   border: none;

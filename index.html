@@ -11,7 +11,15 @@
     <link rel="stylesheet" href="src/style.css" />
   </head>
   <body>
-    <main id="app"></main>
+    <!-- On a real phone this is a no-op wrapper — the frame/notch/mat only
+         render past the desktop breakpoint in style.css. #app itself stays
+         the single element main.js ever touches. -->
+    <div id="phone-mat">
+      <div id="phone-frame">
+        <div id="phone-notch"></div>
+        <main id="app"></main>
+      </div>
+    </div>
     <script type="module" src="src/main.js"></script>
   </body>
 </html>
