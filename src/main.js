@@ -64,11 +64,13 @@ async function main() {
   }
 
   app.innerHTML = `
-    <button type="button" id="app-header">caffè quotidiano</button>
-    <div id="app-frame">
-      <div id="back-bar"></div>
-      <div id="content"></div>
-      <div id="modal-root"></div>
+    <div id="app-scroll">
+      <button type="button" id="app-header">caffè quotidiano</button>
+      <div id="app-frame">
+        <div id="back-bar"></div>
+        <div id="content"></div>
+        <div id="modal-root"></div>
+      </div>
     </div>
     <nav id="bottom-nav"></nav>
   `;

@@ -162,8 +162,9 @@ body {
     position: relative;
     width: 100%;
     height: 100%;
-    overflow-y: auto;
-    overflow-x: hidden;
+    /* Clips to the rounded screen shape below — the actual scrolling
+       happens on #app-scroll, not here (see its comment for why). */
+    overflow: hidden;
     border-radius: 2.5rem;
     isolation: isolate;
     /* Otherwise any gap between #app's own children reveals the bezel
@@ -171,12 +172,6 @@ body {
        real phone #app just sits directly on the white <body>, so this
        never came up until #app got a non-white ancestor. */
     background: var(--color-bg);
-    /* A mobile browser's own scrollbar is a thin auto-hiding overlay, not
-       the ~15px opaque gutter a nested overflow:auto div gets by default —
-       "thin" plus the matching ::-webkit-scrollbar-* rules below get this
-       div closer to that look instead of looking like a desktop page. */
-    scrollbar-width: thin;
-    scrollbar-color: rgba(0, 0, 0, 0.22) transparent;
     /* Establishes #app as the containing block for its position:fixed
        descendants (#bottom-nav, .modal-backdrop) — without this they'd
        pin themselves to the real browser viewport and float outside the
@@ -184,15 +179,34 @@ body {
     transform: translateZ(0);
   }
 
-  #app::-webkit-scrollbar {
+  /* The actual scrollable screen content. Kept separate from #app (which
+     just clips + anchors #bottom-nav's fixed positioning) rather than
+     making #app itself scroll — a #bottom-nav fixed to a transformed
+     ancestor that is *also* the scrolling element drifted along with the
+     scroll in Chrome instead of staying pinned; #bottom-nav is a sibling
+     of this element, not a descendant, so it's unaffected by its scroll. */
+  #app-scroll {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* A mobile browser's own scrollbar is a thin auto-hiding overlay, not
+       the ~15px opaque gutter a nested overflow:auto div gets by default —
+       "thin" plus the matching ::-webkit-scrollbar-* rules below get this
+       div closer to that look instead of looking like a desktop page. */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.22) transparent;
+  }
+
+  #app-scroll::-webkit-scrollbar {
     width: 6px;
   }
 
-  #app::-webkit-scrollbar-track {
+  #app-scroll::-webkit-scrollbar-track {
     background: transparent;
   }
 
-  #app::-webkit-scrollbar-thumb {
+  #app-scroll::-webkit-scrollbar-thumb {
     background: rgba(0, 0, 0, 0.22);
     border-radius: 999px;
   }
