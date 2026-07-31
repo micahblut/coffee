@@ -303,10 +303,19 @@ export async function renderBrewSheet(container, nav, options = {}) {
   const bagNameEl = /** @type {HTMLElement | null} */ (
     container.querySelector("#brew-bag-current-name")
   );
+  const dateInput = /** @type {HTMLInputElement} */ (
+    container.querySelector("#brew-date")
+  );
+  dateInput.value = existing
+    ? dateToInputValue(existing.brewDate)
+    : todayDateInputValue();
 
+  // A brew can't predate the bag it was made from, so the date picker's
+  // lower bound tracks whichever bag is currently selected.
   function syncBagDisplay() {
     const bag = bagsById.get(bagSelect.value);
     if (bagNameEl) bagNameEl.textContent = bag ? bagLabel(bag) : "";
+    dateInput.min = bag ? dateToInputValue(bag.roastDate) : "";
     for (const chip of /** @type {HTMLButtonElement[]} */ (
       Array.from(container.querySelectorAll(".bag-quick-pick"))
     )) {
@@ -411,13 +420,6 @@ export async function renderBrewSheet(container, nav, options = {}) {
   }
   brewerSelect.addEventListener("change", renderBrewerCleaningStatus);
   await renderBrewerCleaningStatus();
-
-  const dateInput = /** @type {HTMLInputElement} */ (
-    container.querySelector("#brew-date")
-  );
-  dateInput.value = existing
-    ? dateToInputValue(existing.brewDate)
-    : todayDateInputValue();
 
   const grindSizeInput = /** @type {HTMLInputElement} */ (
     container.querySelector("#brew-grind-size")
@@ -543,6 +545,11 @@ export async function renderBrewSheet(container, nav, options = {}) {
     }
     if (brewDate > todayDateInputValue()) {
       errorEl.textContent = "Brew date can't be in the future.";
+      return;
+    }
+    const bag = bagsById.get(bagId);
+    if (bag && brewDate < dateToInputValue(bag.roastDate)) {
+      errorEl.textContent = "Brew date can't be before the bag's roast date.";
       return;
     }
 
