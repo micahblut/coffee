@@ -75,7 +75,13 @@ async function addBag(roasterId, overrides = {}) {
  * @param {Partial<import("../src/models/types.js").Brewer>} [overrides]
  */
 async function addBrewer(overrides = {}) {
-  const brewer = { id: newId(), name: "Test Brewer", ...overrides };
+  /** @type {import("../src/models/types.js").Brewer} */
+  const brewer = {
+    id: newId(),
+    name: "Test Brewer",
+    type: "Espresso",
+    ...overrides,
+  };
   await db.brewers.add(brewer);
   return brewer;
 }
@@ -522,9 +528,11 @@ test("updateSettings merges fields instead of overwriting the whole settings row
 test("getBrewerCleaningStatus reports due-soon by brew count once past the warn threshold", async () => {
   const roaster = await addRoaster();
   const bag = await addBag(roaster.id);
+  /** @type {import("../src/models/types.js").Brewer} */
   const brewer = {
     id: newId(),
     name: "B",
+    type: "Espresso",
     lastCleanedDate: new Date(2026, 0, 1),
     cleaningIntervalBrews: 10,
   };
@@ -543,9 +551,11 @@ test("getBrewerCleaningStatus reports due-soon by brew count once past the warn 
 test("getBrewerCleaningStatus reports overdue by brew count past the limit", async () => {
   const roaster = await addRoaster();
   const bag = await addBag(roaster.id);
+  /** @type {import("../src/models/types.js").Brewer} */
   const brewer = {
     id: newId(),
     name: "B",
+    type: "Espresso",
     lastCleanedDate: new Date(2026, 0, 1),
     cleaningIntervalBrews: 10,
   };
@@ -564,9 +574,11 @@ test("getBrewerCleaningStatus reports overdue by brew count past the limit", asy
 test("getBrewerCleaningStatus lets the weeks backstop (converted to days) take over for a lightly-used brewer", async () => {
   const roaster = await addRoaster();
   const bag = await addBag(roaster.id);
+  /** @type {import("../src/models/types.js").Brewer} */
   const brewer = {
     id: newId(),
     name: "B",
+    type: "Espresso",
     lastCleanedDate: new Date(Date.now() - 3.9 * MS_PER_WEEK),
     cleaningIntervalBrews: 1000,
     cleaningIntervalWeeks: 4,
@@ -582,7 +594,13 @@ test("getBrewerCleaningStatus lets the weeks backstop (converted to days) take o
 test("getBrewerCleaningStatus counts a brew logged the same day the brewer was marked cleaned", async () => {
   const roaster = await addRoaster();
   const bag = await addBag(roaster.id);
-  const brewer = { id: newId(), name: "B", cleaningIntervalBrews: 1 };
+  /** @type {import("../src/models/types.js").Brewer} */
+  const brewer = {
+    id: newId(),
+    name: "B",
+    type: "Espresso",
+    cleaningIntervalBrews: 1,
+  };
   await db.brewers.add(brewer);
 
   await markBrewerCleaned(brewer.id);
@@ -600,9 +618,11 @@ test("getBrewerCleaningStatus counts a brew logged the same day the brewer was m
 });
 
 test("markBrewerCleaned resets lastCleanedDate to the start of today", async () => {
+  /** @type {import("../src/models/types.js").Brewer} */
   const brewer = {
     id: newId(),
     name: "B",
+    type: "Espresso",
     lastCleanedDate: new Date(2020, 0, 1),
   };
   await db.brewers.add(brewer);

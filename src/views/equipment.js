@@ -4,7 +4,7 @@ import {
   markBrewerCleaned,
 } from "../db/db.js";
 import { renderGrinderEditSheet } from "./grinders.js";
-import { renderBrewerEditSheet } from "./brewers.js";
+import { renderBrewerEditSheet, brewerTypeIcon } from "./brewers.js";
 
 const PENCIL_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>`;
 // Lucide's "wand-sparkles" icon.
@@ -119,10 +119,20 @@ export async function renderEquipmentHome(container, nav) {
       item.className = "equipment-item";
       item.dataset.brewerId = brewer.id;
 
+      const leading = document.createElement("span");
+      leading.className = "equipment-item-leading";
+
+      const typeIcon = document.createElement("span");
+      typeIcon.className = "equipment-item-type-icon";
+      typeIcon.innerHTML = brewerTypeIcon(brewer.type);
+      leading.append(typeIcon);
+
       const name = document.createElement("span");
       name.className = "equipment-item-name";
       name.textContent = brewer.name;
-      item.append(name);
+      leading.append(name);
+
+      item.append(leading);
 
       const trailing = document.createElement("span");
       trailing.className = "equipment-item-trailing";

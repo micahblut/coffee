@@ -254,6 +254,15 @@ textarea:focus {
   outline-offset: 1px;
 }
 
+/* Mobile Safari gives input[type="date"] an intrinsic minimum layout width
+   for its day/month/year segments that ignores an explicit CSS `width`
+   narrower than that minimum — on a narrow viewport the control renders
+   wider than its box and spills out of the settings card around it. */
+input[type="date"] {
+  min-width: 0;
+  max-width: 100%;
+}
+
 /* A short intro line under a page's h1, explaining what the page is for. */
 .page-help-text {
   margin: 0 0 1.5rem;
@@ -540,9 +549,17 @@ button {
 }
 
 .recent-brew-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   margin: 0.35rem 0 0;
   font-size: 0.8rem;
   color: var(--color-ink-soft);
+}
+
+.recent-brew-type-icon {
+  display: inline-flex;
+  flex-shrink: 0;
 }
 
 .recent-brew-notes {
@@ -600,6 +617,23 @@ button {
   box-shadow: var(--emboss-raised);
   padding: 0.65rem 0.85rem;
   cursor: pointer;
+}
+
+/* Groups a brewer's type icon with its name so justify-content:
+   space-between on .equipment-item only has to balance two things (this
+   group, .equipment-item-trailing) instead of spreading three items evenly
+   across the row. Grinders have no type, so their list doesn't use this
+   wrapper — the bare name span is appended directly instead. */
+.equipment-item-leading {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.equipment-item-type-icon {
+  display: inline-flex;
+  color: var(--color-ink-soft);
+  flex-shrink: 0;
 }
 
 .equipment-item-name {

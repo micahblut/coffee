@@ -1,8 +1,13 @@
 import { db, getBrewDatesInMonth, getRecentBrews } from "../db/db.js";
-import { renderBrewSheet, renderBrewsForDate } from "./brews.js";
+import {
+  renderBrewSheet,
+  renderBrewsForDate,
+  formatBrewCardMeta,
+} from "./brews.js";
+import { brewerTypeIcon } from "./brewers.js";
 
 const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
-const RECENT_BREWS_LIMIT = 10;
+const RECENT_BREWS_LIMIT = 5;
 
 export const CHEVRON_LEFT = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>`;
 export const CHEVRON_RIGHT = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
@@ -148,11 +153,13 @@ export async function renderHome(container, nav) {
   );
 
   async function renderRecentBrews() {
-    const [brews, bags] = await Promise.all([
+    const [brews, bags, brewers] = await Promise.all([
       getRecentBrews(RECENT_BREWS_LIMIT),
       db.bags.toArray(),
+      db.brewers.toArray(),
     ]);
     const bagsById = new Map(bags.map((bag) => [bag.id, bag]));
+    const brewersById = new Map(brewers.map((brewer) => [brewer.id, brewer]));
 
     recentBrewsList.innerHTML = "";
 
@@ -194,7 +201,19 @@ export async function renderHome(container, nav) {
 
       const meta = document.createElement("p");
       meta.className = "recent-brew-meta";
-      meta.textContent = `Grind ${brew.grindSize} · ${brew.extractionTimeSeconds}s`;
+
+      const brewer = brewersById.get(brew.brewerId);
+      if (brewer) {
+        const typeIcon = document.createElement("span");
+        typeIcon.className = "recent-brew-type-icon";
+        typeIcon.innerHTML = brewerTypeIcon(brewer.type);
+        meta.append(typeIcon);
+      }
+
+      const metaText = document.createElement("span");
+      metaText.textContent = formatBrewCardMeta(brew);
+      meta.append(metaText);
+
       item.append(meta);
 
       if (brew.notes) {

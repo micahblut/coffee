@@ -11,7 +11,8 @@ import {
   todayDateInputValue,
 } from "../utils/dates.js";
 import { renderRoasterForm } from "./roasters.js";
-import { renderBrewSheet } from "./brews.js";
+import { renderBrewSheet, formatBrewCardMeta } from "./brews.js";
+import { brewerTypeIcon } from "./brewers.js";
 import { renderPager } from "./pagination.js";
 
 const BAG_TYPES = ["Espresso", "Filter"];
@@ -329,7 +330,9 @@ export async function renderBagDetail(container, nav, bagId) {
   const averageRating = hasBrews
     ? ratingPoints.reduce((sum, p) => sum + p.rating, 0) / ratingPoints.length
     : null;
-  const metaLine = [bag.origin, bag.process].filter(Boolean).join(" · ");
+  const metaLine = [bag.origin, bag.process, bag.type]
+    .filter(Boolean)
+    .join(" · ");
 
   container.innerHTML = `
     <h1 id="bag-detail-title"></h1>
@@ -444,10 +447,12 @@ export async function renderBagDetail(container, nav, bagId) {
   let offset = 0;
 
   async function renderBrews() {
-    const [brews, total] = await Promise.all([
+    const [brews, total, brewers] = await Promise.all([
       getBrewsForBag(bagId, { offset, limit: PAGE_SIZE }),
       countBrewsForBag(bagId),
+      db.brewers.toArray(),
     ]);
+    const brewersById = new Map(brewers.map((brewer) => [brewer.id, brewer]));
 
     list.innerHTML = "";
 
@@ -476,7 +481,19 @@ export async function renderBagDetail(container, nav, bagId) {
 
       const meta = document.createElement("p");
       meta.className = "recent-brew-meta";
-      meta.textContent = `Grind ${brew.grindSize} · ${brew.extractionTimeSeconds}s`;
+
+      const brewer = brewersById.get(brew.brewerId);
+      if (brewer) {
+        const typeIcon = document.createElement("span");
+        typeIcon.className = "recent-brew-type-icon";
+        typeIcon.innerHTML = brewerTypeIcon(brewer.type);
+        meta.append(typeIcon);
+      }
+
+      const metaText = document.createElement("span");
+      metaText.textContent = formatBrewCardMeta(brew);
+      meta.append(metaText);
+
       item.append(meta);
 
       if (brew.notes) {

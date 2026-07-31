@@ -5,6 +5,23 @@ import {
   startOfToday,
 } from "../utils/dates.js";
 
+const BREWER_TYPES = ["Espresso", "Filter"];
+
+// Lucide has no dedicated "portafilter" glyph, so this is a hand-drawn
+// silhouette (handle + basket + double spout) kept in the same stroke style
+// as the rest of the app's Lucide-derived icons.
+const PORTAFILTER_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="3" cy="9" r="1.5"></circle><path d="M5 9h6"></path><path d="M11 5h9l-2 7h-5Z"></path><path d="M13.5 12v4"></path><path d="M17.5 12v4"></path></svg>`;
+// Lucide's "funnel" icon.
+const FUNNEL_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"></path></svg>`;
+
+/**
+ * @param {import("../models/types.js").BrewerType} type
+ * @returns {string}
+ */
+export function brewerTypeIcon(type) {
+  return type === "Filter" ? FUNNEL_ICON : PORTAFILTER_ICON;
+}
+
 /**
  * Add/edit form for a single brewer, meant to be rendered inside a bottom
  * sheet (via nav.showModal) from the Equipment page. This only ever handles
@@ -27,6 +44,12 @@ export async function renderBrewerEditSheet(container, nav, brewer, onSaved) {
           <div>
             <label for="brewer-edit-name">Name</label>
             <input id="brewer-edit-name" name="name" type="text" autocomplete="off" required />
+          </div>
+          <div>
+            <label for="brewer-edit-type">Type</label>
+            <select id="brewer-edit-type" name="type" required>
+              ${BREWER_TYPES.map((type) => `<option value="${type}">${type}</option>`).join("")}
+            </select>
           </div>
           <div>
             <label for="brewer-edit-last-cleaned">Last cleaned</label>
@@ -63,6 +86,10 @@ export async function renderBrewerEditSheet(container, nav, brewer, onSaved) {
     container.querySelector("#brewer-edit-name")
   );
   nameInput.value = brewer?.name ?? "";
+  const typeSelect = /** @type {HTMLSelectElement} */ (
+    container.querySelector("#brewer-edit-type")
+  );
+  if (brewer) typeSelect.value = brewer.type;
   const lastCleanedInput = /** @type {HTMLInputElement} */ (
     container.querySelector("#brewer-edit-last-cleaned")
   );
@@ -92,6 +119,7 @@ export async function renderBrewerEditSheet(container, nav, brewer, onSaved) {
 
     const data = new FormData(form);
     const name = String(data.get("name") ?? "").trim();
+    const type = String(data.get("type") ?? "");
     const lastCleanedDate = String(data.get("lastCleanedDate") ?? "").trim();
     const cleaningIntervalBrews = String(
       data.get("cleaningIntervalBrews") ?? "",
@@ -99,12 +127,13 @@ export async function renderBrewerEditSheet(container, nav, brewer, onSaved) {
     const cleaningIntervalWeeks = String(
       data.get("cleaningIntervalWeeks") ?? "",
     ).trim();
-    if (!name) return;
+    if (!name || !type) return;
 
     const hasInterval = cleaningIntervalBrews || cleaningIntervalWeeks;
 
     const fields = {
       name,
+      type: /** @type {import("../models/types.js").BrewerType} */ (type),
       lastCleanedDate: lastCleanedDate
         ? parseDateInputValue(lastCleanedDate)
         : hasInterval && !brewer?.lastCleanedDate

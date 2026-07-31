@@ -35,9 +35,28 @@ export function formatBrewDetails(brew, grinderNames, brewerNames) {
   } else if (brew.yieldGrams) {
     details.push(`yield ${brew.yieldGrams}g`);
   }
-  details.push(`${brew.extractionTimeSeconds}s`);
+  if (brew.extractionTimeSeconds != null) {
+    details.push(`${brew.extractionTimeSeconds}s`);
+  }
   if (brew.waterTempCelsius) details.push(`${brew.waterTempCelsius}°C`);
   return details.join(", ");
+}
+
+/**
+ * The compact "Grind 18 · Yield 36g · 28s" line shown on a brew card on the
+ * Home screen and a Bag View's brew list — yield and extraction time are
+ * both optional (extraction time doesn't apply to every brew method), so
+ * either is omitted from the line when not recorded.
+ * @param {import("../models/types.js").Brew} brew
+ * @returns {string}
+ */
+export function formatBrewCardMeta(brew) {
+  const parts = [`Grind ${brew.grindSize}`];
+  if (brew.yieldGrams != null) parts.push(`Yield ${brew.yieldGrams}g`);
+  if (brew.extractionTimeSeconds != null) {
+    parts.push(`${brew.extractionTimeSeconds}s`);
+  }
+  return parts.join(" · ");
 }
 
 /**
@@ -170,7 +189,7 @@ export async function renderBrewSheet(container, nav, options = {}) {
     `
     <div>
       <label for="brew-extraction-time">Extraction time (seconds)</label>
-      <input id="brew-extraction-time" name="extractionTimeSeconds" type="number" min="0" autocomplete="off" required />
+      <input id="brew-extraction-time" name="extractionTimeSeconds" type="number" min="0" autocomplete="off" />
     </div>
     `,
     hasDefaultWaterTemp ? "" : waterTempFieldHtml,
@@ -539,7 +558,7 @@ export async function renderBrewSheet(container, nav, options = {}) {
       errorEl.textContent = "Select a rating before saving.";
       return;
     }
-    if (!grinderId || !brewerId || !brewDate || !grindSize || !extractionTimeSeconds) {
+    if (!grinderId || !brewerId || !brewDate || !grindSize) {
       errorEl.textContent = "Fill in the missing brew details before saving.";
       return;
     }
@@ -561,7 +580,9 @@ export async function renderBrewSheet(container, nav, options = {}) {
       grindSize: Number(grindSize),
       doseGrams: doseGrams ? Number(doseGrams) : undefined,
       yieldGrams: yieldGrams ? Number(yieldGrams) : undefined,
-      extractionTimeSeconds: Number(extractionTimeSeconds),
+      extractionTimeSeconds: extractionTimeSeconds
+        ? Number(extractionTimeSeconds)
+        : undefined,
       waterTempCelsius: waterTempCelsius ? Number(waterTempCelsius) : undefined,
       rating: /** @type {1 | 2 | 3 | 4 | 5} */ (Number(rating)),
       notes: notes || undefined,

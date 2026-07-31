@@ -66,6 +66,28 @@ db.version(4).stores({
   settings: "id",
 });
 
+db.version(5)
+  .stores({
+    roasters: "id, name",
+    bags: "id, roasterId, roastDate, type, createdAt, [roasterId+roastDate]",
+    grinders: "id, name",
+    brewers: "id, name, type",
+    brews: "id, bagId, grinderId, brewerId, brewDate, rating, [bagId+brewDate]",
+    settings: "id",
+  })
+  .upgrade(async (tx) => {
+    // Existing brewers predate the espresso/filter distinction — default to
+    // Espresso (the more common dedicated "brewer" this app tracks) rather
+    // than leaving it unset, since the field is required going forward.
+    // Users can correct it per-brewer after upgrading.
+    await tx
+      .table("brewers")
+      .toCollection()
+      .modify((brewer) => {
+        brewer.type = "Espresso";
+      });
+  });
+
 /**
  * Generates a client-side id for a new record. Using client-generated ids
  * (rather than autoincrement) means local records can sync to a future
@@ -162,16 +184,16 @@ export async function getRecentBags(limit) {
  */
 
 /**
- * A page of every bag, most-recently-created first, each annotated with its
+ * A page of every bag, most-recently-roasted first, each annotated with its
  * average brew rating — used for the Coffee page's "Recent bags" list,
- * which (despite the name) is the full bag catalog ordered by recency, not
- * a bounded preview. Walks the createdAt index directly, so offset/limit
+ * which (despite the name) is the full bag catalog ordered by roast date,
+ * not a bounded preview. Walks the roastDate index directly, so offset/limit
  * paginate via the index cursor rather than sorting the full set in memory.
  * @param {Page} [page]
  * @returns {Promise<BagWithRating[]>}
  */
 export async function getBagsPageWithRatings({ offset = 0, limit } = {}) {
-  let collection = db.bags.orderBy("createdAt").reverse().offset(offset);
+  let collection = db.bags.orderBy("roastDate").reverse().offset(offset);
   if (limit != null) collection = collection.limit(limit);
   const bags = await collection.toArray();
 

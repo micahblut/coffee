@@ -39,9 +39,14 @@
  */
 
 /**
+ * @typedef {"Espresso" | "Filter"} BrewerType
+ */
+
+/**
  * @typedef {Object} Brewer
  * @property {string} id
  * @property {string} name
+ * @property {BrewerType} type
  * @property {Date} [lastCleanedDate]
  * @property {number} [cleaningIntervalBrews] remind to clean after this
  *   many brews since lastCleanedDate
@@ -70,7 +75,7 @@
  * @property {number} grindSize
  * @property {number} [doseGrams]
  * @property {number} [yieldGrams]
- * @property {number} extractionTimeSeconds
+ * @property {number} [extractionTimeSeconds]
  * @property {number} [waterTempCelsius]
  * @property {1 | 2 | 3 | 4 | 5} rating
  * @property {string} [notes]
