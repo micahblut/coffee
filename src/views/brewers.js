@@ -7,10 +7,10 @@ import {
 
 const BREWER_TYPES = ["Espresso", "Filter"];
 
-// Lucide has no dedicated "portafilter" glyph, so this is a hand-drawn
-// silhouette (handle + basket + double spout) kept in the same stroke style
-// as the rest of the app's Lucide-derived icons.
-const PORTAFILTER_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="3" cy="9" r="1.5"></circle><path d="M5 9h6"></path><path d="M11 5h9l-2 7h-5Z"></path><path d="M13.5 12v4"></path><path d="M17.5 12v4"></path></svg>`;
+// Same top-down portafilter glyph used for the Equipment tab in the bottom
+// nav (see src/main.js) — kept in sync so the icon reads consistently
+// across the app.
+const PORTAFILTER_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6"></circle><path d="M4.5 4.5 3 3"></path><path d="M13.5 4.5 15 3"></path><path d="M13.5 13.5 20 20"></path></svg>`;
 // Lucide's "funnel" icon.
 const FUNNEL_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"></path></svg>`;
 
