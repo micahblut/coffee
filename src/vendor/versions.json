@@ -1,0 +1,4 @@
+{
+  "dexie": "4.4.4",
+  "@passwordlessdev/passwordless-client": "1.2.4"
+}

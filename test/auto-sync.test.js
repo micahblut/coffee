@@ -16,19 +16,25 @@ const originalFetch = globalThis.fetch;
  * @param {Record<string, () => Response>} responses
  */
 function fakeFetch(responses) {
+  /** @type {string[]} */
   const calls = [];
-  const fn = async (url, options = {}) => {
-    const path = new URL(url).pathname;
-    const key = `${options.method ?? "GET"} ${path}`;
-    calls.push(key);
-    const respond = responses[key];
-    if (!respond) throw new Error(`Unexpected fetch: ${key}`);
-    return respond();
-  };
+  const fn = /** @type {typeof fetch & { calls: string[] }} */ (
+    async (/** @type {string} */ url, /** @type {RequestInit} */ options = {}) => {
+      const path = new URL(url).pathname;
+      const key = `${options.method ?? "GET"} ${path}`;
+      calls.push(key);
+      const respond = responses[key];
+      if (!respond) throw new Error(`Unexpected fetch: ${key}`);
+      return respond();
+    }
+  );
   fn.calls = calls;
   return fn;
 }
 
+/**
+ * @param {unknown} body
+ */
 function okJson(body) {
   return () => new Response(JSON.stringify(body), { status: 200 });
 }

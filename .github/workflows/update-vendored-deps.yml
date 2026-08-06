@@ -1,0 +1,50 @@
+name: Check vendored dependency updates
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # every Monday at 06:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Re-vendor from latest npm versions
+        run: node scripts/update-vendored-deps.js
+
+      - name: Check for changes
+        id: diff
+        run: |
+          if git diff --quiet -- src/vendor; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open a pull request
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          branch="update-vendored-deps-$(date +%Y%m%d)"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add src/vendor/
+          git commit -m "Update vendored dependencies"
+          git push origin "$branch"
+          gh pr create \
+            --title "Update vendored dependencies" \
+            --body "Automated check found a newer published version of a vendored dependency (see \`src/vendor/README.md\`). The diff is the re-vendored file(s) plus the version bump in \`src/vendor/versions.json\`. These are checked-in third-party files, not a regular dependency bump — review the diff before merging, same as any vendored code change." \
+            --base main \
+            --head "$branch"

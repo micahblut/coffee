@@ -52,6 +52,10 @@ after editing any file.
 - `npm run typecheck` — type-check the codebase with TypeScript
 - `npm test` — run the test suite (Node's built-in test runner, with
   `fake-indexeddb` standing in for the browser's IndexedDB)
+- `node scripts/update-vendored-deps.js` — re-vendor `src/vendor/`'s
+  third-party files from their latest npm versions (see
+  `src/vendor/README.md`); also run weekly by a GitHub Actions workflow that
+  opens a PR when it finds an actual update
 
 ## Project structure
 
