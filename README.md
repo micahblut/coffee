@@ -71,4 +71,6 @@ test/
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE) — except the vendored files in `src/vendor/`
+(Dexie, the Passwordless.dev client SDK), which are Apache License 2.0; see
+`src/vendor/README.md` for attribution details.
