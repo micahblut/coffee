@@ -3,6 +3,8 @@ import { renderHome, CHEVRON_LEFT } from "./views/home.js";
 import { renderSettings } from "./views/settings.js";
 import { renderEquipmentHome } from "./views/equipment.js";
 import { renderCoffeeHome } from "./views/coffee.js";
+import { refreshSessionState } from "./sync/session.js";
+import { startAutoSync } from "./sync/auto-sync.js";
 
 /**
  * @typedef {(container: HTMLElement) => void | Promise<void>} ViewRender
@@ -62,6 +64,14 @@ async function main() {
     app.textContent = "Failed to open the local database.";
     return;
   }
+
+  // Deliberately not awaited: the app must render immediately regardless of
+  // network state (this is a local-first PWA — offline boot must stay
+  // instant), so the session check and auto-sync start happen in the
+  // background whenever they resolve.
+  refreshSessionState().then((userId) => {
+    if (userId) startAutoSync();
+  });
 
   app.innerHTML = `
     <div id="app-scroll">
