@@ -6,6 +6,11 @@ import {
   importAllData,
 } from "../db/db.js";
 import { todayDateInputValue } from "../utils/dates.js";
+import { renderCloudSetupModal, signInWithPasskey } from "./cloud-setup.js";
+import { isSignedIn, clearSessionState } from "../sync/session.js";
+import { startAutoSync, stopAutoSync, getSyncStatus, syncNow } from "../sync/auto-sync.js";
+import { restoreFromCloud } from "../sync/backup.js";
+import { logout } from "../api/client.js";
 
 /**
  * @param {string} filename
@@ -82,6 +87,10 @@ export async function renderSettings(container, nav) {
         <input type="file" id="import-input" accept="application/json" hidden />
         <p id="data-status"></p>
       </div>
+    </section>
+    <section class="settings-section">
+      <h2>Cloud backup (optional)</h2>
+      <div class="settings-card" id="cloud-backup-card"></div>
     </section>
   `;
 
@@ -207,5 +216,142 @@ export async function renderSettings(container, nav) {
         error instanceof Error ? error.message : "Import failed.";
     }
     importInput.value = "";
+  });
+
+  const cloudCard = /** @type {HTMLElement} */ (
+    container.querySelector("#cloud-backup-card")
+  );
+  renderCloudBackupCard(cloudCard, nav);
+}
+
+/**
+ * @param {Date} date
+ */
+function formatSyncedAt(date) {
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function cloudStatusText() {
+  const { status, lastSyncedAt } = getSyncStatus();
+  switch (status) {
+    case "syncing":
+      return "Syncing…";
+    case "pending":
+      return "Sync pending…";
+    case "error":
+      return "Sync failed — will retry on next change.";
+    case "synced":
+      return lastSyncedAt ? `Synced at ${formatSyncedAt(lastSyncedAt)}.` : "Synced.";
+    default:
+      return lastSyncedAt
+        ? `Last synced at ${formatSyncedAt(lastSyncedAt)}.`
+        : "Not backed up yet.";
+  }
+}
+
+/**
+ * @param {HTMLElement} card
+ * @param {import("../main.js").Nav} nav
+ */
+function renderCloudBackupCard(card, nav) {
+  if (!isSignedIn()) {
+    card.innerHTML = `
+      <p>Back up your data so it's safe if you switch devices.</p>
+      <button type="button" id="cloud-setup-button" class="brew-button">Set up cloud backup</button>
+      <p>Already set up on another device?</p>
+      <button type="button" id="cloud-signin-button" class="brew-button">Sign in with passkey</button>
+      <p id="cloud-signin-status"></p>
+    `;
+    const setupButton = /** @type {HTMLButtonElement} */ (
+      card.querySelector("#cloud-setup-button")
+    );
+    setupButton.addEventListener("click", () => {
+      nav.showModal((sheet) =>
+        renderCloudSetupModal(sheet, nav, {
+          onRegistered: () => {
+            nav.hideModal();
+            renderCloudBackupCard(card, nav);
+          },
+        }),
+      );
+    });
+
+    const signInStatus = /** @type {HTMLElement} */ (
+      card.querySelector("#cloud-signin-status")
+    );
+    const signInButton = /** @type {HTMLButtonElement} */ (
+      card.querySelector("#cloud-signin-button")
+    );
+    signInButton.addEventListener("click", async () => {
+      signInStatus.textContent = "Signing in...";
+      try {
+        await signInWithPasskey();
+        renderCloudBackupCard(card, nav);
+      } catch (error) {
+        signInStatus.textContent =
+          error instanceof Error ? error.message : "Sign-in failed.";
+      }
+    });
+    return;
+  }
+
+  card.innerHTML = `
+    <p id="cloud-status-text"></p>
+    <button type="button" id="cloud-backup-now-button" class="brew-button">Back up now</button>
+    <button type="button" id="cloud-restore-button" class="brew-button">Restore from cloud</button>
+    <button type="button" id="cloud-sign-out-button" class="brew-button">Sign out</button>
+  `;
+
+  const statusText = /** @type {HTMLElement} */ (
+    card.querySelector("#cloud-status-text")
+  );
+  statusText.textContent = cloudStatusText();
+
+  const backupNowButton = /** @type {HTMLButtonElement} */ (
+    card.querySelector("#cloud-backup-now-button")
+  );
+  backupNowButton.addEventListener("click", async () => {
+    statusText.textContent = "Backing up...";
+    try {
+      await syncNow();
+      statusText.textContent = cloudStatusText();
+    } catch (error) {
+      statusText.textContent =
+        error instanceof Error ? error.message : "Backup failed.";
+    }
+  });
+
+  const restoreButton = /** @type {HTMLButtonElement} */ (
+    card.querySelector("#cloud-restore-button")
+  );
+  restoreButton.addEventListener("click", async () => {
+    const confirmed = await nav.confirm(
+      "Restoring replaces everything currently stored on this device with your cloud backup.",
+      { confirmLabel: "Restore" },
+    );
+    if (!confirmed) return;
+
+    statusText.textContent = "Restoring...";
+    try {
+      await restoreFromCloud();
+      statusText.textContent = "Restore complete.";
+    } catch (error) {
+      statusText.textContent =
+        error instanceof Error ? error.message : "Restore failed.";
+    }
+  });
+
+  const signOutButton = /** @type {HTMLButtonElement} */ (
+    card.querySelector("#cloud-sign-out-button")
+  );
+  signOutButton.addEventListener("click", async () => {
+    stopAutoSync();
+    try {
+      await logout();
+    } catch {
+      // Session cookie may already be gone server-side — sign out locally regardless.
+    }
+    clearSessionState();
+    renderCloudBackupCard(card, nav);
   });
 }

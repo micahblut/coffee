@@ -1,0 +1,12 @@
+name = "caffe-api"
+main = "src/index.js"
+compatibility_date = "2026-08-06"
+
+routes = [
+  { pattern = "api.coffee.blut.dev", custom_domain = true }
+]
+
+[[d1_databases]]
+binding = "caffe_backups"
+database_name = "caffe-backups"
+database_id = "d97f7185-895e-4cc4-a11a-500ee7e93dde"
