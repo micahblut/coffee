@@ -77,10 +77,19 @@ export function clearSessionCookieHeader() {
 }
 
 /**
+ * @typedef {Object} SessionQueryable narrower than the full D1Database
+ *   interface — just the one query shape this function needs, so a plain
+ *   test double can satisfy it without stubbing batch/exec/etc. too.
+ * @property {(sql: string) => {
+ *   bind: (tokenHash: string) => { first: () => Promise<{ user_id: string, expires_at: string } | null> }
+ * }} prepare
+ */
+
+/**
  * Resolves the signed-in user's id from the session cookie, or null if
  * there isn't a valid, unexpired session.
  * @param {Request} request
- * @param {{ caffe_backups: D1Database }} env
+ * @param {{ caffe_backups: SessionQueryable }} env
  * @returns {Promise<string | null>}
  */
 export async function getSessionUserId(request, env) {

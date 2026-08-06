@@ -12,7 +12,7 @@ import {
 export default {
   /**
    * @param {Request} request
-   * @param {any} env
+   * @param {Env} env
    */
   async fetch(request, env) {
     const url = new URL(request.url);

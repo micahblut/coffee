@@ -60,7 +60,7 @@ async function mintSession(env, userId) {
 
 /**
  * @param {Request} request
- * @param {any} env
+ * @param {Env} env
  */
 export async function handleRegisterBegin(request, env) {
   const body = await request.json().catch(() => null);
@@ -89,7 +89,7 @@ export async function handleRegisterBegin(request, env) {
 
 /**
  * @param {Request} request
- * @param {any} env
+ * @param {Env} env
  */
 export async function handleRegisterComplete(request, env) {
   const body = await request.json().catch(() => null);
@@ -118,7 +118,7 @@ export async function handleRegisterComplete(request, env) {
 
 /**
  * @param {Request} request
- * @param {any} env
+ * @param {Env} env
  */
 export async function handleLoginComplete(request, env) {
   const body = await request.json().catch(() => null);
@@ -144,7 +144,7 @@ export async function handleLoginComplete(request, env) {
 
 /**
  * @param {Request} request
- * @param {any} env
+ * @param {Env} env
  */
 export async function handleSession(request, env) {
   const userId = await getSessionUserId(request, env);
@@ -154,7 +154,7 @@ export async function handleSession(request, env) {
 
 /**
  * @param {Request} request
- * @param {any} env
+ * @param {Env} env
  */
 export async function handleBackupPost(request, env) {
   const userId = await getSessionUserId(request, env);
@@ -190,7 +190,7 @@ export async function handleBackupPost(request, env) {
 
 /**
  * @param {Request} request
- * @param {any} env
+ * @param {Env} env
  */
 export async function handleBackupGet(request, env) {
   const userId = await getSessionUserId(request, env);
@@ -209,7 +209,7 @@ export async function handleBackupGet(request, env) {
 
 /**
  * @param {Request} request
- * @param {any} env
+ * @param {Env} env
  */
 export async function handleLogout(request, env) {
   const token = getSessionToken(request);

@@ -4,13 +4,16 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "typecheck": "wrangler types && tsc && tsc -p tsconfig.test.json"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "devDependencies": {
+    "@types/node": "^26.1.2",
+    "typescript": "~6.0.2",
     "wrangler": "^4.119.0"
   }
 }

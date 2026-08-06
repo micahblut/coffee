@@ -94,7 +94,7 @@ function fakeD1(rows) {
     caffe_backups: {
       prepare() {
         return {
-          bind(tokenHash) {
+          bind(/** @type {string} */ tokenHash) {
             return {
               async first() {
                 return rows.find((row) => row.token_hash === tokenHash) ?? null;
