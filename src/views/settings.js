@@ -16,7 +16,7 @@ import {
   subscribeToSyncStatus,
 } from "../sync/auto-sync.js";
 import { restoreFromCloud } from "../sync/backup.js";
-import { logout } from "../api/client.js";
+import { logout, deleteAccount } from "../api/client.js";
 
 /**
  * @param {string} filename
@@ -91,6 +91,9 @@ export async function renderSettings(container, nav) {
         <p>Restoring from a file replaces everything currently stored in this browser.</p>
         <button type="button" id="import-button" class="brew-button">Import data</button>
         <input type="file" id="import-input" accept="application/json" hidden />
+        <h3>Delete</h3>
+        <p>Deleting your data will remove all on-device and any cloud data. Make sure to export before deleting.</p>
+        <button type="button" id="delete-data-button" class="brew-button">Delete data</button>
         <p id="data-status"></p>
       </div>
     </section>
@@ -222,6 +225,31 @@ export async function renderSettings(container, nav) {
         error instanceof Error ? error.message : "Import failed.";
     }
     importInput.value = "";
+  });
+
+  const deleteDataButton = /** @type {HTMLButtonElement} */ (
+    container.querySelector("#delete-data-button")
+  );
+  deleteDataButton.addEventListener("click", async () => {
+    const confirmed = await nav.confirm(
+      "If you delete without exporting, there is no way to recover your data.",
+      { confirmLabel: "Delete data" },
+    );
+    if (!confirmed) return;
+
+    dataStatus.textContent = "Deleting...";
+    try {
+      if (isSignedIn()) {
+        stopAutoSync();
+        await deleteAccount();
+        clearSessionState();
+      }
+      await db.delete();
+      window.location.reload();
+    } catch (error) {
+      dataStatus.textContent =
+        error instanceof Error ? error.message : "Delete failed.";
+    }
   });
 
   const cloudCard = /** @type {HTMLElement} */ (

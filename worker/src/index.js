@@ -7,6 +7,7 @@ import {
   handleBackupGet,
   handleBackupPost,
   handleLogout,
+  handleAccountDelete,
 } from "./handlers.js";
 
 export default {
@@ -48,6 +49,9 @@ export default {
     }
     if (url.pathname === "/logout" && request.method === "POST") {
       return handleLogout(request, env);
+    }
+    if (url.pathname === "/account/delete" && request.method === "POST") {
+      return handleAccountDelete(request, env);
     }
 
     return new Response("Not found", { status: 404, headers: corsHeaders() });

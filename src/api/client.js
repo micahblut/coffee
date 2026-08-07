@@ -80,3 +80,11 @@ export function pullBackup() {
 export function logout() {
   return request("/logout", { method: "POST" });
 }
+
+/**
+ * Permanently deletes the signed-in user's account: passwordless.dev
+ * credentials, cloud backups, and the D1 user row.
+ */
+export function deleteAccount() {
+  return request("/account/delete", { method: "POST" });
+}
