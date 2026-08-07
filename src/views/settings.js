@@ -47,8 +47,8 @@ export async function renderSettings(container, nav) {
 
   container.innerHTML = `
     <h1>Settings</h1>
-    <section class="settings-section">
-      <h2>Daily brew settings</h2>
+    <details class="settings-section" open>
+      <summary>Daily brew settings</summary>
       <div class="settings-card">
         <p>Set any defaults to pre-fill the brew form - you can always change them when logging a brew.</p>
         <form id="settings-form">
@@ -80,9 +80,9 @@ export async function renderSettings(container, nav) {
         </form>
         <p id="settings-status"></p>
       </div>
-    </section>
-    <section class="settings-section">
-      <h2>Data</h2>
+    </details>
+    <details class="settings-section">
+      <summary>Data</summary>
       <div class="settings-card">
         <h3>Export</h3>
         <p>Download all of your roasters, bags, grinders, brewers, and brews as a JSON file.</p>
@@ -96,11 +96,11 @@ export async function renderSettings(container, nav) {
         <button type="button" id="delete-data-button" class="brew-button">Delete data</button>
         <p id="data-status"></p>
       </div>
-    </section>
-    <section class="settings-section">
-      <h2>Cloud backup (optional)</h2>
+    </details>
+    <details class="settings-section">
+      <summary>Cloud backup (optional)</summary>
       <div class="settings-card" id="cloud-backup-card"></div>
-    </section>
+    </details>
   `;
 
   const grinderSelect = /** @type {HTMLSelectElement} */ (
