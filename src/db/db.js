@@ -541,6 +541,23 @@ export async function getRecentBrews(limit) {
     .slice(0, limit);
 }
 
+/**
+ * True if there's no user-entered data at all — used to decide whether
+ * signing in on a fresh device should pull the cloud backup down instead of
+ * pushing this empty state up over it.
+ * @returns {Promise<boolean>}
+ */
+export async function hasNoLocalData() {
+  const counts = await Promise.all([
+    db.roasters.count(),
+    db.bags.count(),
+    db.grinders.count(),
+    db.brewers.count(),
+    db.brews.count(),
+  ]);
+  return counts.every((count) => count === 0);
+}
+
 const EXPORT_VERSION = 1;
 
 /**

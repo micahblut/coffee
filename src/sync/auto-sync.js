@@ -14,11 +14,27 @@ let lastSyncedAt = null;
 let debounceTimer = null;
 let listening = false;
 
+/** @type {Set<() => void>} */
+const statusListeners = new Set();
+
 /**
  * @param {SyncStatus} next
  */
 function setStatus(next) {
   status = next;
+  for (const listener of statusListeners) listener();
+}
+
+/**
+ * Notifies the given listener on every status or lastSyncedAt change, so a
+ * rendered view can keep its "Syncing…"/"Synced at…" text current instead of
+ * only refreshing on next render.
+ * @param {() => void} listener
+ * @returns {() => void} unsubscribe
+ */
+export function subscribeToSyncStatus(listener) {
+  statusListeners.add(listener);
+  return () => statusListeners.delete(listener);
 }
 
 function onStorageMutated() {
