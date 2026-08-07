@@ -271,8 +271,17 @@ textarea:focus {
 /* Mobile Safari gives input[type="date"] an intrinsic minimum layout width
    for its day/month/year segments that ignores an explicit CSS `width`
    narrower than that minimum — on a narrow viewport the control renders
-   wider than its box and spills out of the settings card around it. */
+   wider than its box and spills out of the settings card around it.
+   min-width/max-width alone cap the box but not that intrinsic minimum, so
+   the segments still push past the box's own edges once they need more
+   room than the box has — e.g. after the 16px focus-zoom fix above grew
+   every input's font-size, the segments no longer fit at the width they
+   used to. Dropping the native appearance renders the control as a plain
+   text-like box that actually respects width/max-width — tapping it still
+   opens the native date picker. */
 input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
   min-width: 0;
   max-width: 100%;
 }
