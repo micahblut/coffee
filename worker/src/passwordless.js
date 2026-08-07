@@ -51,5 +51,6 @@ export async function listCredentials(apiSecret, userId) {
     { headers: { ApiSecret: apiSecret } },
   );
   if (!response.ok) return [];
-  return response.json();
+  const data = await response.json();
+  return data.values;
 }

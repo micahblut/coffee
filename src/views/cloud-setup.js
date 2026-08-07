@@ -82,12 +82,22 @@ export async function renderCloudSetupModal(container, nav, { onRegistered }) {
 
   try {
     const turnstile = await loadTurnstile();
-    turnstile.render(turnstileContainer, {
+    const widgetId = turnstile.render(turnstileContainer, {
       sitekey: TURNSTILE_SITE_KEY,
       callback: (/** @type {string} */ token) => {
         turnstileToken = token;
       },
     });
+    // The modal sheet gets torn out of the DOM (drag-dismiss or after
+    // registering) without any close hook, so watch for that directly —
+    // otherwise this widget is orphaned and Cloudflare's script keeps
+    // trying to manage an iframe that's no longer there.
+    const cleanupObserver = new MutationObserver(() => {
+      if (container.isConnected) return;
+      turnstile.remove(widgetId);
+      cleanupObserver.disconnect();
+    });
+    cleanupObserver.observe(document.body, { childList: true, subtree: true });
   } catch {
     status.textContent =
       "Couldn't load the verification check. Check your connection and try again.";
