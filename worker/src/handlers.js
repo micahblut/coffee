@@ -11,7 +11,12 @@ import {
   SESSION_TTL_SECONDS,
 } from "./lib.js";
 import { verifyTurnstile } from "./turnstile.js";
-import { createRegisterToken, verifySigninToken, listCredentials } from "./passwordless.js";
+import {
+  createRegisterToken,
+  verifySigninToken,
+  listCredentials,
+  deleteAllCredentials,
+} from "./passwordless.js";
 
 const MAX_BACKUP_BYTES = 1.5 * 1024 * 1024;
 
@@ -205,6 +210,34 @@ export async function handleBackupGet(request, env) {
   return new Response(/** @type {string} */ (row.payload), {
     headers: { "Content-Type": "application/json", ...corsHeaders() },
   });
+}
+
+/**
+ * Permanently and irreversibly erases the signed-in user's account — the
+ * passwordless.dev credentials (so signing back in is impossible), then
+ * their D1 rows (sessions, backups, and the user itself). Deletes the
+ * passwordless.dev side first: if that fails partway, retrying is safe
+ * (it re-fetches whatever credentials are still there), whereas the
+ * reverse order could strand a signed-out user with a live passkey but
+ * no way to reach this endpoint again.
+ * @param {Request} request
+ * @param {Env} env
+ */
+export async function handleAccountDelete(request, env) {
+  const userId = await getSessionUserId(request, env);
+  if (!userId) return json({ error: "Not signed in" }, { status: 401 });
+
+  await deleteAllCredentials(env.PASSWORDLESS_API_SECRET, userId);
+
+  await env.caffe_backups.batch([
+    env.caffe_backups.prepare("DELETE FROM sessions WHERE user_id = ?").bind(userId),
+    env.caffe_backups.prepare("DELETE FROM backups WHERE user_id = ?").bind(userId),
+    env.caffe_backups.prepare("DELETE FROM users WHERE id = ?").bind(userId),
+  ]);
+
+  const response = json({ ok: true });
+  response.headers.append("Set-Cookie", clearSessionCookieHeader());
+  return response;
 }
 
 /**

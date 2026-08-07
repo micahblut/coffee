@@ -54,3 +54,35 @@ export async function listCredentials(apiSecret, userId) {
   const data = await response.json();
   return data.values;
 }
+
+/**
+ * @param {string} apiSecret
+ * @param {string} credentialId
+ */
+export async function deleteCredential(apiSecret, credentialId) {
+  const response = await fetch(`${API_URL}/credentials/delete`, {
+    method: "POST",
+    headers: { ApiSecret: apiSecret, "Content-Type": "application/json" },
+    body: JSON.stringify({ credentialId }),
+  });
+  if (!response.ok) {
+    throw new Error(`Passwordless credentials/delete failed: ${response.status}`);
+  }
+}
+
+/**
+ * Passwordless.dev has no single "delete user" endpoint — a user is just an
+ * implicit grouping of credentials, so deleting every credential is what
+ * actually erases them (and, as a side effect, makes signing back in
+ * impossible).
+ * @param {string} apiSecret
+ * @param {string} userId
+ */
+export async function deleteAllCredentials(apiSecret, userId) {
+  const credentials = /** @type {{ descriptor: { id: string } }[]} */ (
+    await listCredentials(apiSecret, userId)
+  );
+  for (const credential of credentials) {
+    await deleteCredential(apiSecret, credential.descriptor.id);
+  }
+}
