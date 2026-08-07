@@ -3,6 +3,8 @@ import { PASSWORDLESS_PUBLIC_KEY, TURNSTILE_SITE_KEY } from "../config.js";
 import { registerBegin, registerComplete, loginComplete } from "../api/client.js";
 import { refreshSessionState } from "../sync/session.js";
 import { startAutoSync } from "../sync/auto-sync.js";
+import { restoreFromCloud } from "../sync/backup.js";
+import { hasNoLocalData } from "../db/db.js";
 
 /**
  * Signs in on a device that already has a passkey registered for this app
@@ -18,6 +20,15 @@ export async function signInWithPasskey() {
 
   await loginComplete(/** @type {string} */ (token));
   await refreshSessionState();
+
+  // This is almost always a fresh device with an existing cloud backup —
+  // pull it down rather than letting auto-sync push this empty state up
+  // and overwrite the real backup. A device that already has local data
+  // keeps the normal push-based auto-sync, matching the "Back up data" /
+  // "Restore from cloud" buttons' existing latest-wins model.
+  if (await hasNoLocalData()) {
+    await restoreFromCloud();
+  }
   startAutoSync();
 }
 
@@ -84,6 +95,8 @@ export async function renderCloudSetupModal(container, nav, { onRegistered }) {
     const turnstile = await loadTurnstile();
     const widgetId = turnstile.render(turnstileContainer, {
       sitekey: TURNSTILE_SITE_KEY,
+      appearance: "interaction-only",
+      size: "flexible",
       callback: (/** @type {string} */ token) => {
         turnstileToken = token;
       },

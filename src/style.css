@@ -958,6 +958,25 @@ button {
   color: var(--color-red-dark);
 }
 
+/* A non-destructive counterpart to .detail-delete-button — e.g. "Cancel"
+   beneath a sheet's primary action, where the red treatment above would
+   misleadingly suggest the action itself is destructive. */
+.text-button {
+  display: block;
+  width: 100%;
+  margin-top: 1rem;
+  background: none;
+  border: none;
+  color: var(--color-ink-soft);
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.text-button:active {
+  color: var(--color-ink);
+}
+
 /* Settings screen
    ------------------------------------------------------------------ */
 

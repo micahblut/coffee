@@ -289,23 +289,18 @@ async function main() {
         nav.showModal((container) => {
           container.innerHTML = `
             <p id="confirm-message"></p>
-            <button type="button" id="confirm-cancel"></button>
-            <button type="button" id="confirm-ok"></button>
+            <div class="sheet-actions">
+              <button type="button" id="confirm-ok" class="brew-button"></button>
+            </div>
+            <div class="sheet-secondary-actions">
+              <button type="button" id="confirm-cancel" class="text-button"></button>
+            </div>
           `;
 
           const messageEl = /** @type {HTMLElement} */ (
             container.querySelector("#confirm-message")
           );
           messageEl.textContent = message;
-
-          const cancelButton = /** @type {HTMLButtonElement} */ (
-            container.querySelector("#confirm-cancel")
-          );
-          cancelButton.textContent = cancelLabel;
-          cancelButton.addEventListener("click", () => {
-            nav.hideModal();
-            resolve(false);
-          });
 
           const okButton = /** @type {HTMLButtonElement} */ (
             container.querySelector("#confirm-ok")
@@ -314,6 +309,15 @@ async function main() {
           okButton.addEventListener("click", () => {
             nav.hideModal();
             resolve(true);
+          });
+
+          const cancelButton = /** @type {HTMLButtonElement} */ (
+            container.querySelector("#confirm-cancel")
+          );
+          cancelButton.textContent = cancelLabel;
+          cancelButton.addEventListener("click", () => {
+            nav.hideModal();
+            resolve(false);
           });
         });
       });

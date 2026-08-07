@@ -8,7 +8,13 @@ import {
 import { todayDateInputValue } from "../utils/dates.js";
 import { renderCloudSetupModal, signInWithPasskey } from "./cloud-setup.js";
 import { isSignedIn, clearSessionState } from "../sync/session.js";
-import { startAutoSync, stopAutoSync, getSyncStatus, syncNow } from "../sync/auto-sync.js";
+import {
+  startAutoSync,
+  stopAutoSync,
+  getSyncStatus,
+  syncNow,
+  subscribeToSyncStatus,
+} from "../sync/auto-sync.js";
 import { restoreFromCloud } from "../sync/backup.js";
 import { logout } from "../api/client.js";
 
@@ -297,15 +303,26 @@ function renderCloudBackupCard(card, nav) {
 
   card.innerHTML = `
     <p id="cloud-status-text"></p>
-    <button type="button" id="cloud-backup-now-button" class="brew-button">Back up now</button>
+    <button type="button" id="cloud-backup-now-button" class="brew-button">Back up data</button>
     <button type="button" id="cloud-restore-button" class="brew-button">Restore from cloud</button>
-    <button type="button" id="cloud-sign-out-button" class="brew-button">Sign out</button>
+    <button type="button" id="cloud-sign-out-button" class="detail-delete-button">Sign out</button>
   `;
 
   const statusText = /** @type {HTMLElement} */ (
     card.querySelector("#cloud-status-text")
   );
   statusText.textContent = cloudStatusText();
+
+  // Re-rendering this card (sign-in, sign-out, setup) replaces statusText
+  // with a fresh node, which detaches this one — that's the unsubscribe
+  // signal, so a stale listener never lingers past its own card render.
+  const unsubscribe = subscribeToSyncStatus(() => {
+    if (!statusText.isConnected) {
+      unsubscribe();
+      return;
+    }
+    statusText.textContent = cloudStatusText();
+  });
 
   const backupNowButton = /** @type {HTMLButtonElement} */ (
     card.querySelector("#cloud-backup-now-button")
