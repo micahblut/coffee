@@ -382,7 +382,7 @@ function renderCloudBackupCard(card, nav) {
         ${COPY_ICON}
       </button>
     </div>
-    <p id="cloud-copy-uid-status" class="cloud-copy-uid-status"></p>
+    <p id="cloud-copy-uid-status"></p>
     <button type="button" id="cloud-sign-out-button" class="detail-delete-button">Sign out</button>
   `;
 

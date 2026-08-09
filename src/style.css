@@ -1394,13 +1394,34 @@ button {
   resize: vertical;
 }
 
+/* Card-wide rhythm: every direct child of the cloud backup card (buttons,
+   status text, this row) is spaced by #cloud-backup-card's own gap instead
+   of each carrying its own margin — otherwise a button's margin-bottom and
+   the next element's margin-top stack instead of collapsing, since neither
+   is a block box (buttons are inline-block), producing uneven gaps. */
+#cloud-backup-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+#cloud-backup-card > * {
+  margin: 0;
+}
+
+/* An empty status line (nothing copied/synced/signed-in yet) would still
+   count as a flex item and eat a full gap on either side of it — collapse
+   it out of the layout entirely until it actually has something to say. */
+#cloud-backup-card p:empty {
+  display: none;
+}
+
 /* Support-lookup aid, not a normal call to action — gray and quiet like
    .cleaning-status rather than styled as a button. */
 .cloud-user-id {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  margin-top: 1rem;
   font-size: 0.8rem;
   color: var(--color-ink-soft);
 }
@@ -1409,8 +1430,13 @@ button {
   word-break: break-all;
 }
 
+/* The global `button` rule's 2.75rem min-height (a touch-target minimum,
+   not a visual one) makes this taller than its 16px icon — center the icon
+   within that box rather than letting it sit at the default top-left. */
 .cloud-copy-uid-button {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 0;
   background: none;
   border: none;
@@ -1419,12 +1445,6 @@ button {
 
 .cloud-copy-uid-button:active {
   color: var(--color-ink);
-}
-
-.cloud-copy-uid-status {
-  margin-top: 0.35rem;
-  font-size: 0.75rem;
-  color: var(--color-ink-soft);
 }
 
 .sync-key-icon {
