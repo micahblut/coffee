@@ -60,6 +60,7 @@
  * @property {"settings"} id
  * @property {string} [defaultGrinderId]
  * @property {string} [defaultBrewerId]
+ * @property {number} [defaultGrindSize]
  * @property {number} [defaultDoseGrams]
  * @property {number} [defaultYieldGrams]
  * @property {number} [defaultWaterTempCelsius]

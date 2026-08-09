@@ -126,6 +126,7 @@ export async function renderBrewSheet(container, nav, options = {}) {
 
   const hasDefaultBrewer = settings?.defaultBrewerId != null;
   const hasDefaultGrinder = settings?.defaultGrinderId != null;
+  const hasDefaultGrindSize = settings?.defaultGrindSize != null;
   const hasDefaultDose = settings?.defaultDoseGrams != null;
   const hasDefaultYield = settings?.defaultYieldGrams != null;
   const hasDefaultWaterTemp = settings?.defaultWaterTempCelsius != null;
@@ -152,6 +153,12 @@ export async function renderBrewSheet(container, nav, options = {}) {
       <div id="grinder-cleaning-status" class="cleaning-status"></div>
     </div>
   `;
+  const grindSizeFieldHtml = `
+    <div>
+      <label for="brew-grind-size">Grind size</label>
+      <input id="brew-grind-size" name="grindSize" type="number" step="any" autocomplete="off" required />
+    </div>
+  `;
   const doseFieldHtml = `
     <div>
       <label for="brew-dose">Dose (g)</label>
@@ -171,10 +178,10 @@ export async function renderBrewSheet(container, nav, options = {}) {
     </div>
   `;
 
-  // Date, grind size, and extraction time have no notion of a "default" —
-  // they always show. Everything else only shows here if the user hasn't
-  // already configured a default for it; otherwise it moves to the
-  // collapsed section below.
+  // Date and extraction time have no notion of a "default" — they always
+  // show. Everything else only shows here if the user hasn't already
+  // configured a default for it; otherwise it moves to the collapsed
+  // section below.
   const mainFieldsHtml = [
     hasDefaultBrewer ? "" : brewerFieldHtml,
     hasDefaultGrinder ? "" : grinderFieldHtml,
@@ -183,11 +190,8 @@ export async function renderBrewSheet(container, nav, options = {}) {
       <label for="brew-date">Date</label>
       <input id="brew-date" name="brewDate" type="date" max="${todayDateInputValue()}" autocomplete="off" required />
     </div>
-    <div>
-      <label for="brew-grind-size">Grind size</label>
-      <input id="brew-grind-size" name="grindSize" type="number" step="any" autocomplete="off" required />
-    </div>
     `,
+    hasDefaultGrindSize ? "" : grindSizeFieldHtml,
     hasDefaultDose ? "" : doseFieldHtml,
     hasDefaultYield ? "" : yieldFieldHtml,
     `
@@ -202,6 +206,7 @@ export async function renderBrewSheet(container, nav, options = {}) {
   const defaultsFieldsHtml = [
     hasDefaultBrewer ? brewerFieldHtml : "",
     hasDefaultGrinder ? grinderFieldHtml : "",
+    hasDefaultGrindSize ? grindSizeFieldHtml : "",
     hasDefaultDose ? doseFieldHtml : "",
     hasDefaultYield ? yieldFieldHtml : "",
     hasDefaultWaterTemp ? waterTempFieldHtml : "",
@@ -301,7 +306,9 @@ export async function renderBrewSheet(container, nav, options = {}) {
     if (el && value != null) el.placeholder = `Last used: ${value}`;
   }
   if (lastBrew) {
-    setLastUsedPlaceholder("#brew-grind-size", lastBrew.grindSize);
+    if (!hasDefaultGrindSize) {
+      setLastUsedPlaceholder("#brew-grind-size", lastBrew.grindSize);
+    }
     if (!hasDefaultDose) {
       setLastUsedPlaceholder(
         "#brew-dose",
@@ -483,10 +490,17 @@ export async function renderBrewSheet(container, nav, options = {}) {
   brewerSelect.addEventListener("change", renderBrewerCleaningStatus);
   await renderBrewerCleaningStatus();
 
-  const grindSizeInput = /** @type {HTMLInputElement} */ (
+  const grindSizeInput = /** @type {HTMLInputElement | null} */ (
     container.querySelector("#brew-grind-size")
   );
-  grindSizeInput.value = existing ? String(existing.grindSize) : "";
+  if (grindSizeInput) {
+    grindSizeInput.value =
+      existing?.grindSize != null
+        ? String(existing.grindSize)
+        : settings?.defaultGrindSize != null
+          ? String(settings.defaultGrindSize)
+          : "";
+  }
 
   const doseInput = /** @type {HTMLInputElement | null} */ (
     container.querySelector("#brew-dose")

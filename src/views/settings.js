@@ -65,6 +65,10 @@ export async function renderSettings(container, nav) {
             </select>
           </div>
           <div>
+            <label for="settings-grind-size">Default grind size</label>
+            <input id="settings-grind-size" name="defaultGrindSize" type="number" step="any" autocomplete="off" />
+          </div>
+          <div>
             <label for="settings-dose">Default dose (g)</label>
             <input id="settings-dose" name="defaultDoseGrams" type="number" step="any" min="0" autocomplete="off" />
           </div>
@@ -125,6 +129,12 @@ export async function renderSettings(container, nav) {
   }
   brewerSelect.value = settings?.defaultBrewerId ?? "";
 
+  const grindSizeInput = /** @type {HTMLInputElement} */ (
+    container.querySelector("#settings-grind-size")
+  );
+  grindSizeInput.value =
+    settings?.defaultGrindSize != null ? String(settings.defaultGrindSize) : "";
+
   const doseInput = /** @type {HTMLInputElement} */ (
     container.querySelector("#settings-dose")
   );
@@ -160,6 +170,7 @@ export async function renderSettings(container, nav) {
     const data = new FormData(form);
     const defaultGrinderId = String(data.get("defaultGrinderId") ?? "").trim();
     const defaultBrewerId = String(data.get("defaultBrewerId") ?? "").trim();
+    const defaultGrindSize = String(data.get("defaultGrindSize") ?? "").trim();
     const defaultDoseGrams = String(data.get("defaultDoseGrams") ?? "").trim();
     const defaultYieldGrams = String(
       data.get("defaultYieldGrams") ?? "",
@@ -171,6 +182,7 @@ export async function renderSettings(container, nav) {
     await updateSettings({
       defaultGrinderId: defaultGrinderId || undefined,
       defaultBrewerId: defaultBrewerId || undefined,
+      defaultGrindSize: defaultGrindSize ? Number(defaultGrindSize) : undefined,
       defaultDoseGrams: defaultDoseGrams ? Number(defaultDoseGrams) : undefined,
       defaultYieldGrams: defaultYieldGrams
         ? Number(defaultYieldGrams)
