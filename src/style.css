@@ -1393,3 +1393,41 @@ button {
   min-height: 6rem;
   resize: vertical;
 }
+
+/* Support-lookup aid, not a normal call to action — gray and quiet like
+   .cleaning-status rather than styled as a button. */
+.cloud-user-id {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  color: var(--color-ink-soft);
+}
+
+.cloud-user-id-text {
+  word-break: break-all;
+}
+
+.cloud-copy-uid-button {
+  display: inline-flex;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--color-ink-soft);
+}
+
+.cloud-copy-uid-button:active {
+  color: var(--color-ink);
+}
+
+.cloud-copy-uid-status {
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--color-ink-soft);
+}
+
+.sync-key-icon {
+  vertical-align: -2px;
+  margin-left: 0.15rem;
+}
