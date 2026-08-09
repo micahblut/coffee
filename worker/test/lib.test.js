@@ -10,6 +10,7 @@ import {
   sessionCookieHeader,
   clearSessionCookieHeader,
   getSessionUserId,
+  resolveAndRenewSession,
   SESSION_TTL_SECONDS,
 } from "../src/lib.js";
 
@@ -150,5 +151,108 @@ describe("getSessionUserId", () => {
     const env = fakeD1([]);
     const request = new Request("https://api.coffee.blut.dev/session");
     assert.equal(await getSessionUserId(request, env), null);
+  });
+});
+
+/**
+ * Like fakeD1, but also handles the UPDATE resolveAndRenewSession issues
+ * on renewal, and records the new expires_at it was given.
+ * @param {{ token_hash: string, user_id: string, expires_at: string }[]} rows
+ */
+function fakeD1WithRenewal(rows) {
+  const updates = /** @type {{ tokenHash: string, expiresAt: string }[]} */ ([]);
+  return {
+    updates,
+    caffe_backups: {
+      prepare(/** @type {string} */ sql) {
+        if (sql.startsWith("UPDATE")) {
+          return {
+            bind(/** @type {string} */ expiresAt, /** @type {string} */ tokenHash) {
+              return {
+                async run() {
+                  updates.push({ tokenHash, expiresAt });
+                },
+              };
+            },
+          };
+        }
+        return {
+          bind(/** @type {string} */ tokenHash) {
+            return {
+              async first() {
+                return rows.find((row) => row.token_hash === tokenHash) ?? null;
+              },
+            };
+          },
+        };
+      },
+    },
+  };
+}
+
+describe("resolveAndRenewSession", () => {
+  test("returns null when there's no valid session", async () => {
+    const env = fakeD1WithRenewal([]);
+    const request = new Request("https://api.coffee.blut.dev/session", {
+      headers: { Cookie: "session=unknown-token" },
+    });
+    assert.equal(await resolveAndRenewSession(request, env), null);
+  });
+
+  test("doesn't renew a session that's well outside the renewal window", async () => {
+    const tokenHash = await sha256Hex("fresh-token");
+    const env = fakeD1WithRenewal([
+      {
+        token_hash: tokenHash,
+        user_id: "user-1",
+        expires_at: new Date(Date.now() + 29 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+    ]);
+    const request = new Request("https://api.coffee.blut.dev/session", {
+      headers: { Cookie: "session=fresh-token" },
+    });
+    const session = await resolveAndRenewSession(request, env);
+    assert.equal(session?.userId, "user-1");
+    assert.equal(session?.renewedCookie, null);
+    assert.equal(env.updates.length, 0);
+  });
+
+  test("renews a session within the 48-hour threshold and returns a fresh Set-Cookie", async () => {
+    const tokenHash = await sha256Hex("aging-token");
+    const env = fakeD1WithRenewal([
+      {
+        token_hash: tokenHash,
+        user_id: "user-1",
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+      },
+    ]);
+    const request = new Request("https://api.coffee.blut.dev/session", {
+      headers: { Cookie: "session=aging-token" },
+    });
+    const session = await resolveAndRenewSession(request, env);
+    assert.equal(session?.userId, "user-1");
+    assert.match(/** @type {string} */ (session?.renewedCookie), /^session=aging-token;/);
+    assert.match(
+      /** @type {string} */ (session?.renewedCookie),
+      new RegExp(`Max-Age=${SESSION_TTL_SECONDS}\\b`),
+    );
+    assert.equal(env.updates.length, 1);
+    assert.equal(env.updates[0].tokenHash, tokenHash);
+  });
+
+  test("doesn't renew (or extend the cookie for) an already-expired session", async () => {
+    const tokenHash = await sha256Hex("stale-token");
+    const env = fakeD1WithRenewal([
+      {
+        token_hash: tokenHash,
+        user_id: "user-1",
+        expires_at: new Date(Date.now() - 60_000).toISOString(),
+      },
+    ]);
+    const request = new Request("https://api.coffee.blut.dev/session", {
+      headers: { Cookie: "session=stale-token" },
+    });
+    assert.equal(await resolveAndRenewSession(request, env), null);
+    assert.equal(env.updates.length, 0);
   });
 });

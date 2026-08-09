@@ -2,6 +2,11 @@ const ALLOWED_ORIGIN = "https://coffee.blut.dev";
 const SESSION_COOKIE_NAME = "session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 export const SESSION_TTL_SECONDS = SESSION_TTL_MS / 1000;
+// Sliding-expiration window: an authenticated request within this long of
+// the session's expiry mints a fresh 30-day expiry instead, so an actively
+// used app never hits the wall. Chosen loosely enough that a session isn't
+// re-extended on literally every request once it's within range.
+const SESSION_RENEWAL_THRESHOLD_MS = 48 * 60 * 60 * 1000; // 48 hours
 
 export function corsHeaders() {
   return {
@@ -86,13 +91,21 @@ export function clearSessionCookieHeader() {
  */
 
 /**
- * Resolves the signed-in user's id from the session cookie, or null if
- * there isn't a valid, unexpired session.
+ * @typedef {Object} Session
+ * @property {string} userId
+ * @property {string} token raw cookie value, needed to re-issue Set-Cookie on renewal
+ * @property {string} tokenHash
+ * @property {number} expiresAt epoch ms
+ */
+
+/**
+ * Looks up the session row for this request's cookie, or null if there
+ * isn't a valid, unexpired session.
  * @param {Request} request
  * @param {{ caffe_backups: SessionQueryable }} env
- * @returns {Promise<string | null>}
+ * @returns {Promise<Session | null>}
  */
-export async function getSessionUserId(request, env) {
+async function resolveSession(request, env) {
   const token = getSessionToken(request);
   if (!token) return null;
 
@@ -102,9 +115,51 @@ export async function getSessionUserId(request, env) {
     .bind(tokenHash)
     .first();
   if (!row) return null;
-  if (new Date(/** @type {string} */ (row.expires_at)).getTime() < Date.now()) return null;
 
-  return /** @type {string} */ (row.user_id);
+  const expiresAt = new Date(/** @type {string} */ (row.expires_at)).getTime();
+  if (expiresAt < Date.now()) return null;
+
+  return { userId: /** @type {string} */ (row.user_id), token, tokenHash, expiresAt };
+}
+
+/**
+ * Resolves the signed-in user's id from the session cookie, or null if
+ * there isn't a valid, unexpired session.
+ * @param {Request} request
+ * @param {{ caffe_backups: SessionQueryable }} env
+ * @returns {Promise<string | null>}
+ */
+export async function getSessionUserId(request, env) {
+  const session = await resolveSession(request, env);
+  return session?.userId ?? null;
+}
+
+/**
+ * Resolves the signed-in user, sliding the session's expiry forward (and
+ * returning a fresh Set-Cookie header) when it's within the renewal
+ * window. Returns null if there's no valid session.
+ * @param {Request} request
+ * @param {{ caffe_backups: D1Database }} env
+ * @returns {Promise<{ userId: string, renewedCookie: string | null } | null>}
+ */
+export async function resolveAndRenewSession(request, env) {
+  const session = await resolveSession(request, env);
+  if (!session) return null;
+
+  if (session.expiresAt - Date.now() > SESSION_RENEWAL_THRESHOLD_MS) {
+    return { userId: session.userId, renewedCookie: null };
+  }
+
+  const newExpiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
+  await env.caffe_backups
+    .prepare("UPDATE sessions SET expires_at = ? WHERE token_hash = ?")
+    .bind(newExpiresAt, session.tokenHash)
+    .run();
+
+  return {
+    userId: session.userId,
+    renewedCookie: sessionCookieHeader(session.token, SESSION_TTL_SECONDS),
+  };
 }
 
 /**

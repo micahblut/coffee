@@ -5,6 +5,7 @@ import {
   randomToken,
   getSessionToken,
   getSessionUserId,
+  resolveAndRenewSession,
   clearSessionCookieHeader,
   isoNow,
   corsHeaders,
@@ -152,9 +153,12 @@ export async function handleLoginComplete(request, env) {
  * @param {Env} env
  */
 export async function handleSession(request, env) {
-  const userId = await getSessionUserId(request, env);
-  if (!userId) return json({ error: "Not signed in" }, { status: 401 });
-  return json({ userId });
+  const session = await resolveAndRenewSession(request, env);
+  if (!session) return json({ error: "Not signed in" }, { status: 401 });
+
+  const response = json({ userId: session.userId });
+  if (session.renewedCookie) response.headers.append("Set-Cookie", session.renewedCookie);
+  return response;
 }
 
 /**
@@ -162,8 +166,9 @@ export async function handleSession(request, env) {
  * @param {Env} env
  */
 export async function handleBackupPost(request, env) {
-  const userId = await getSessionUserId(request, env);
-  if (!userId) return json({ error: "Not signed in" }, { status: 401 });
+  const session = await resolveAndRenewSession(request, env);
+  if (!session) return json({ error: "Not signed in" }, { status: 401 });
+  const { userId } = session;
 
   const text = await request.text();
   if (text.length > MAX_BACKUP_BYTES) {
@@ -190,7 +195,9 @@ export async function handleBackupPost(request, env) {
       .bind(crypto.randomUUID(), userId, now, text.length, text),
   ]);
 
-  return json({ createdAt: now });
+  const response = json({ createdAt: now });
+  if (session.renewedCookie) response.headers.append("Set-Cookie", session.renewedCookie);
+  return response;
 }
 
 /**
@@ -198,8 +205,9 @@ export async function handleBackupPost(request, env) {
  * @param {Env} env
  */
 export async function handleBackupGet(request, env) {
-  const userId = await getSessionUserId(request, env);
-  if (!userId) return json({ error: "Not signed in" }, { status: 401 });
+  const session = await resolveAndRenewSession(request, env);
+  if (!session) return json({ error: "Not signed in" }, { status: 401 });
+  const { userId } = session;
 
   const row = await env.caffe_backups
     .prepare("SELECT payload FROM backups WHERE user_id = ? ORDER BY created_at DESC LIMIT 1")
@@ -207,9 +215,11 @@ export async function handleBackupGet(request, env) {
     .first();
   if (!row) return json({ error: "No backup found" }, { status: 404 });
 
-  return new Response(/** @type {string} */ (row.payload), {
+  const response = new Response(/** @type {string} */ (row.payload), {
     headers: { "Content-Type": "application/json", ...corsHeaders() },
   });
+  if (session.renewedCookie) response.headers.append("Set-Cookie", session.renewedCookie);
+  return response;
 }
 
 /**
