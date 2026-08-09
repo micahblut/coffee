@@ -10,6 +10,13 @@ import { startOfToday, startOfDay } from "../utils/dates.js";
  * @typedef {import("../models/types.js").Settings} Settings
  */
 
+/**
+ * @typedef {Object} CachedCryptoKey
+ * @property {string} id
+ * @property {CryptoKey} key
+ * @property {Date} cachedAt
+ */
+
 export const db = /** @type {Dexie & {
  *   roasters: import("../vendor/dexie.d.mts").EntityTable<Roaster, "id">,
  *   bags: import("../vendor/dexie.d.mts").EntityTable<Bag, "id">,
@@ -17,6 +24,7 @@ export const db = /** @type {Dexie & {
  *   brewers: import("../vendor/dexie.d.mts").EntityTable<Brewer, "id">,
  *   brews: import("../vendor/dexie.d.mts").EntityTable<Brew, "id">,
  *   settings: import("../vendor/dexie.d.mts").EntityTable<Settings, "id">,
+ *   cryptoKeys: import("../vendor/dexie.d.mts").EntityTable<CachedCryptoKey, "id">,
  * }} */ (new Dexie("caffe"));
 
 db.version(1).stores({
@@ -87,6 +95,20 @@ db.version(5)
         brewer.type = "Espresso";
       });
   });
+
+// cryptoKeys caches the PRF-derived backup encryption key as a
+// non-extractable CryptoKey (IndexedDB structured-clones these without ever
+// exposing raw key bytes to JS). Deliberately never added to exportAllData's
+// table list — it must never appear in a cloud backup or a local file export.
+db.version(6).stores({
+  roasters: "id, name",
+  bags: "id, roasterId, roastDate, type, createdAt, [roasterId+roastDate]",
+  grinders: "id, name",
+  brewers: "id, name, type",
+  brews: "id, bagId, grinderId, brewerId, brewDate, rating, [bagId+brewDate]",
+  settings: "id",
+  cryptoKeys: "id",
+});
 
 /**
  * Generates a client-side id for a new record. Using client-generated ids

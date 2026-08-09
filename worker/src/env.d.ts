@@ -7,4 +7,9 @@ interface Env {
   PASSWORDLESS_API_SECRET: string;
   TURNSTILE_SECRET_KEY: string;
   INVITE_CODE_SALT: string;
+  // Non-secret by design (see backup-crypto.js) but held here rather than as
+  // a client-code constant so changing it is a deliberate server action, not
+  // an easy-to-miss edit buried in application source. Must never change
+  // once any account has an encrypted backup — doing so orphans it.
+  BACKUP_PRF_SALT: string;
 }

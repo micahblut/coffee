@@ -1,10 +1,10 @@
 import Dexie from "../vendor/dexie.mjs";
-import { backupNow } from "./backup.js";
+import { backupNow, BackupLockedError } from "./backup.js";
 import { isSignedIn } from "./session.js";
 
 const DEBOUNCE_MS = 4000;
 
-/** @typedef {"idle" | "pending" | "syncing" | "synced" | "error"} SyncStatus */
+/** @typedef {"idle" | "pending" | "syncing" | "synced" | "error" | "locked"} SyncStatus */
 
 /** @type {SyncStatus} */
 let status = "idle";
@@ -55,9 +55,13 @@ export async function syncNow() {
     await backupNow();
     lastSyncedAt = new Date();
     setStatus("synced");
-  } catch {
+  } catch (err) {
     // Deliberately no retry timer here — the next local edit or app
     // foreground is what re-attempts, per the plan's failure-handling design.
+    if (err instanceof BackupLockedError) {
+      setStatus("locked");
+      throw err;
+    }
     setStatus("error");
     throw new Error("Backup failed.");
   }
