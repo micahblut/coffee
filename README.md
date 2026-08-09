@@ -26,7 +26,10 @@ passkey-secured cloud backup if you want it.
 - **Cloud backup (optional)** — sign in with a passkey (no email or
   password, ever) to back up automatically in the background and restore
   on a new device. Purely opt-in: skip it, and the app behaves exactly as
-  it always has. See [Cloud backup](#cloud-backup-optional) below.
+  it always has. When your authenticator supports it, backups are
+  end-to-end encrypted with a key derived from your passkey — the server
+  never sees your data in the clear. See
+  [Cloud backup](#cloud-backup-optional) below.
 
 ## Tech stack
 
@@ -101,6 +104,26 @@ A few things by design:
 - **Backup, not sync.** Each device stays authoritative for its own local
   data; the cloud holds one latest snapshot per account, not a
   merged/synced view across devices.
+- **Encrypted when your authenticator supports it.** Registration and
+  sign-in request the WebAuthn PRF extension; if the authenticator honors
+  it, the returned secret is imported directly as a non-extractable
+  AES-256-GCM key and used to encrypt the backup before it ever leaves the
+  device — the worker and D1 only ever store an opaque `{ iv, ciphertext }`
+  envelope. If PRF isn't available, backups fall back to plaintext exactly
+  as before this feature existed; the two formats can't mix for a given
+  account (a backup is either encrypted or not, checked on the first
+  push/pull) — the app tells the account apart by probing the existing
+  remote backup rather than any stored flag.
+  - The derived key is cached per-device (IndexedDB, falling back to
+    in-memory for the current page load if that fails) so most syncs don't
+    need a fresh passkey prompt. A device that already has an encrypted
+    remote backup but no usable local key (cleared storage, or a browser
+    new to the credential) shows as **locked** — backups pause until you
+    tap "Unlock cloud backup," which re-runs the local PRF ceremony
+    without touching the server.
+  - The PRF salt itself is fetched once from the worker and cached in
+    `localStorage` indefinitely (it must never change once minted), so the
+    unlock ceremony works offline after its first fetch.
 
 See [worker/README.md](worker/README.md) for how the backend itself is
 built and secured.
@@ -117,6 +140,12 @@ src/
   views/cloud-setup.js  passkey registration modal + sign-in-with-passkey
   api/client.js    fetch wrapper for the cloud backup Worker API
   sync/            session cache, backup/restore glue, debounced auto-sync
+  sync/backup-crypto.js    AES-256-GCM encrypt/decrypt of backup payloads
+  sync/backup-key-cache.js per-device cache (IndexedDB + in-memory) for the
+                           derived backup encryption key
+  sync/webauthn-prf.js     WebAuthn PRF extension ceremonies (register,
+                           sign-in, explicit unlock) layered on the vendored
+                           Passwordless.dev client
   utils/           small shared helpers (e.g. date math)
   vendor/          vendored third-party files (Dexie, Passwordless.dev client SDK)
 scripts/
@@ -125,6 +154,8 @@ scripts/
 test/
   db.test.js       tests for src/db/db.js
   auto-sync.test.js tests for src/sync/auto-sync.js
+  backup-crypto.test.js    tests for src/sync/backup-crypto.js
+  backup-key-cache.test.js tests for src/sync/backup-key-cache.js
 worker/            optional cloud backup backend — separate project, see worker/README.md
 .github/workflows/
   update-vendored-deps.yml  weekly check for vendored dependency updates
