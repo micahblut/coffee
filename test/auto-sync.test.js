@@ -2,6 +2,22 @@ import "fake-indexeddb/auto";
 import { test, describe, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 
+// Node's own global localStorage needs an on-disk file opted into via a CLI
+// flag we don't otherwise need — session.js just wants something that
+// implements the Web Storage interface, so a plain in-memory stub suffices.
+const fakeLocalStorageStore = /** @type {Map<string, string>} */ (new Map());
+globalThis.localStorage = /** @type {Storage} */ ({
+  getItem(/** @type {string} */ key) {
+    return fakeLocalStorageStore.get(key) ?? null;
+  },
+  setItem(/** @type {string} */ key, /** @type {string} */ value) {
+    fakeLocalStorageStore.set(key, String(value));
+  },
+  removeItem(/** @type {string} */ key) {
+    fakeLocalStorageStore.delete(key);
+  },
+});
+
 import { db } from "../src/db/db.js";
 import { refreshSessionState, clearSessionState, isSignedIn } from "../src/sync/session.js";
 import { startAutoSync, stopAutoSync, getSyncStatus, syncNow } from "../src/sync/auto-sync.js";

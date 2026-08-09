@@ -5,12 +5,19 @@ import {
   formatBrewCardMeta,
 } from "./brews.js";
 import { brewerTypeIcon } from "./brewers.js";
+import { signInWithPasskey } from "./cloud-setup.js";
+import {
+  shouldPromptReauth,
+  dismissReauthPrompt,
+  subscribeToSessionState,
+} from "../sync/session.js";
 
 const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 const RECENT_BREWS_LIMIT = 5;
 
 export const CHEVRON_LEFT = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>`;
 export const CHEVRON_RIGHT = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>`;
+const INFO_ICON = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="11" x2="12" y2="16"></line><line x1="12" y1="8" x2="12" y2="8"></line></svg>`;
 
 /**
  * @param {import("../models/types.js").Brew} brew
@@ -32,9 +39,10 @@ export async function renderHome(container, nav) {
 
   container.innerHTML = `
     <section class="calendar-card" id="calendar"></section>
-    <div class="brew-button-frame">
+    <div class="brew-button-frame home-brew-button-frame">
       <button type="button" id="brew-button" class="brew-button">Brew</button>
     </div>
+    <div id="reauth-callout-root"></div>
     <section class="recent-brews">
       <h2>Recent brews</h2>
       <ul id="recent-brews-list" class="recent-brews-list"></ul>
@@ -53,6 +61,70 @@ export async function renderHome(container, nav) {
         },
       }),
     );
+  });
+
+  const reauthRoot = /** @type {HTMLElement} */ (
+    container.querySelector("#reauth-callout-root")
+  );
+
+  function renderReauthCallout() {
+    if (!shouldPromptReauth()) {
+      reauthRoot.innerHTML = "";
+      return;
+    }
+
+    reauthRoot.innerHTML = `
+      <section class="reauth-callout">
+        <div class="reauth-callout-header">
+          <span class="reauth-callout-icon">${INFO_ICON}</span>
+          <h3>Session expired</h3>
+          <button type="button" id="reauth-dismiss" class="reauth-dismiss" aria-label="Dismiss">&times;</button>
+        </div>
+        <p>
+          <button type="button" id="reauth-signin-button" class="reauth-signin-link">Sign in</button>
+          again to sync your data to the cloud
+        </p>
+        <p id="reauth-status"></p>
+      </section>
+    `;
+
+    const status = /** @type {HTMLElement} */ (
+      reauthRoot.querySelector("#reauth-status")
+    );
+    const signInButton = /** @type {HTMLButtonElement} */ (
+      reauthRoot.querySelector("#reauth-signin-button")
+    );
+    signInButton.addEventListener("click", async () => {
+      status.textContent = "Signing in...";
+      try {
+        await signInWithPasskey();
+        reauthRoot.innerHTML = "";
+      } catch (error) {
+        status.textContent =
+          error instanceof Error ? error.message : "Sign-in failed.";
+      }
+    });
+
+    const dismissButton = /** @type {HTMLButtonElement} */ (
+      reauthRoot.querySelector("#reauth-dismiss")
+    );
+    dismissButton.addEventListener("click", () => {
+      dismissReauthPrompt();
+      reauthRoot.innerHTML = "";
+    });
+  }
+
+  renderReauthCallout();
+
+  // Session state resolves asynchronously after boot (refreshSessionState
+  // isn't awaited, so the app can render offline-first) — this catches the
+  // callout up once that check lands, without requiring a tab switch.
+  const unsubscribeSession = subscribeToSessionState(() => {
+    if (!reauthRoot.isConnected) {
+      unsubscribeSession();
+      return;
+    }
+    renderReauthCallout();
   });
 
   const calendar = /** @type {HTMLElement} */ (

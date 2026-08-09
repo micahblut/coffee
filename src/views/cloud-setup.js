@@ -1,7 +1,7 @@
 import { Client as PasswordlessClient } from "../vendor/passwordless-client.mjs";
 import { PASSWORDLESS_PUBLIC_KEY, TURNSTILE_SITE_KEY } from "../config.js";
 import { registerBegin, registerComplete, loginComplete } from "../api/client.js";
-import { refreshSessionState } from "../sync/session.js";
+import { refreshSessionState, markCloudLinked } from "../sync/session.js";
 import { startAutoSync } from "../sync/auto-sync.js";
 import { restoreFromCloud } from "../sync/backup.js";
 import { hasNoLocalData } from "../db/db.js";
@@ -19,6 +19,7 @@ export async function signInWithPasskey() {
   if (error) throw new Error(error.title || "Sign-in failed.");
 
   await loginComplete(/** @type {string} */ (token));
+  markCloudLinked();
   await refreshSessionState();
 
   // This is almost always a fresh device with an existing cloud backup —
@@ -139,6 +140,7 @@ export async function renderCloudSetupModal(container, nav, { onRegistered }) {
       if (error) throw new Error(error.title || "Passkey registration failed.");
 
       await registerComplete(userId, inviteCodeId);
+      markCloudLinked();
       await refreshSessionState();
       startAutoSync();
       onRegistered();

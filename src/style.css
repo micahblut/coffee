@@ -597,6 +597,92 @@ button {
   padding: 0.5rem 0;
 }
 
+/* The home screen's own .brew-button-frame margin-bottom is what separates
+   the calendar from it (2rem is roasters/bags' detail-page default) —
+   scoped here rather than changed globally so this matches the
+   calendar-to-brew-button gap (the `section` default below) without
+   affecting the other pages that reuse .brew-button-frame. */
+.home-brew-button-frame {
+  margin-bottom: 1.5rem;
+}
+
+/* Unobtrusive, dismissible reminder that cloud backup is paused because the
+   session expired — only ever shown on a device that previously linked a
+   passkey, so it reads as "sign back in" rather than an unprompted pitch. */
+.reauth-callout {
+  background: var(--color-surface);
+  border: 1px solid var(--color-steel);
+  border-radius: var(--radius);
+  box-shadow: var(--emboss-raised);
+  padding: 0.75rem 0.85rem;
+  margin-bottom: 1.5rem;
+}
+
+.reauth-callout-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.reauth-callout-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-ink-soft);
+}
+
+.reauth-callout-header h3 {
+  flex: 1;
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.reauth-callout p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-ink-soft);
+}
+
+.reauth-callout p + p {
+  margin-top: 0.5rem;
+}
+
+.reauth-dismiss {
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  min-height: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--color-ink-soft);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.reauth-dismiss:active {
+  color: var(--color-ink);
+}
+
+/* The "Sign in" call-to-action sits inline in the callout's sentence rather
+   than as its own button row — underlined is the only affordance that
+   it's clickable, matching the surrounding text's weight and color. */
+.reauth-signin-link {
+  display: inline;
+  min-height: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+}
+
+.reauth-signin-link:active {
+  color: var(--color-ink);
+}
+
 /* Equipment screen
    ------------------------------------------------------------------ */
 
