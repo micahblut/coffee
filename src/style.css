@@ -501,6 +501,14 @@ button {
   box-shadow: var(--emboss-raised);
 }
 
+/* Author-stylesheet `display: block` above otherwise beats the UA
+   stylesheet's `[hidden] { display: none }` regardless of specificity, since
+   author rules always win over user-agent rules — so a plain
+   `button.hidden = true` would silently do nothing without this. */
+.brew-button[hidden] {
+  display: none;
+}
+
 .brew-button:active {
   color: var(--color-red-dark);
   border-color: var(--color-red-dark);
