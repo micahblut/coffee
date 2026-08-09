@@ -1,6 +1,7 @@
 import { exportAllData, importAllData } from "../db/db.js";
 import { pushBackup, pullBackup } from "../api/client.js";
 import { getCachedBackupKey } from "./backup-key-cache.js";
+import { clearLockedStatus } from "./auto-sync.js";
 import {
   encryptBackupPayload,
   decryptBackupPayload,
@@ -78,7 +79,12 @@ export async function restoreFromCloud() {
     cachedFormat = "encrypted";
     const key = await getCachedBackupKey();
     if (!key) throw new BackupDecryptError("No local key available to unlock this backup.");
-    return importAllData(await decryptBackupPayload(key, data));
+    const decrypted = await decryptBackupPayload(key, data);
+    // Reaching here proves the cached key actually decrypts the remote
+    // backup, regardless of how it got cached — clear any stale "locked"
+    // status left over from an earlier push that ran without a key.
+    clearLockedStatus();
+    return importAllData(decrypted);
   }
   cachedFormat = "plaintext";
   return importAllData(data);

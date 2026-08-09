@@ -93,3 +93,14 @@ export function stopAutoSync() {
 export function getSyncStatus() {
   return { status, lastSyncedAt };
 }
+
+/**
+ * Unsticks a stale "locked" status once something other than a push has
+ * proven the cached key actually works — called by restoreFromCloud() right
+ * after a successful decrypt, so pulling a backup down can clear the
+ * "Unlock cloud backup" button without waiting for the next push to succeed.
+ * A no-op if status isn't "locked", so it's safe to call unconditionally.
+ */
+export function clearLockedStatus() {
+  if (status === "locked") setStatus("idle");
+}
