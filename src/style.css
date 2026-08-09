@@ -597,6 +597,22 @@ button {
   padding: 0.5rem 0;
 }
 
+.home-github-link {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.home-github-link img {
+  height: 20px;
+  width: auto;
+  opacity: 0.6;
+}
+
+.home-github-link a:hover img {
+  opacity: 1;
+}
+
 /* The home screen's own .brew-button-frame margin-bottom is what separates
    the calendar from it (2rem is roasters/bags' detail-page default) —
    scoped here rather than changed globally so this matches the

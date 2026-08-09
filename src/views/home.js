@@ -49,6 +49,11 @@ export async function renderHome(container, nav) {
       <h2>Recent brews</h2>
       <ul id="recent-brews-list" class="recent-brews-list"></ul>
     </section>
+    <div class="home-github-link">
+      <a href="https://github.com/micahblut/coffee" target="_blank" rel="noopener noreferrer">
+        <img src="/src/assets/github-logo.svg" alt="View source on GitHub" />
+      </a>
+    </div>
   `;
 
   const brewButton = /** @type {HTMLButtonElement} */ (
