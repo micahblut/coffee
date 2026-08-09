@@ -1144,6 +1144,13 @@ button {
   left: 0;
   right: 0;
   bottom: 0;
+  /* Explicit total height (rather than letting button padding grow it),
+     so this matches the --bottom-nav-height + inset math everywhere else
+     (#app-frame's bottom padding, .modal-backdrop's bottom offset) exactly
+     instead of by whatever amount the buttons' content happens to overflow
+     their min-height by. */
+  height: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
   max-width: 26rem;
   margin: 0 auto;
   display: flex;
@@ -1156,8 +1163,7 @@ button {
 
 #bottom-nav button {
   flex: 1;
-  min-height: var(--bottom-nav-height);
-  padding: 0.4rem 0.25rem calc(0.4rem + env(safe-area-inset-bottom));
+  padding: 0.4rem 0.25rem;
   background: none;
   border: none;
   display: flex;
@@ -1213,7 +1219,10 @@ button {
   background: var(--color-surface);
   border-radius: var(--radius) var(--radius) 0 0;
   box-shadow: var(--emboss-raised);
-  padding: 1.25rem 1rem calc(1.25rem + env(safe-area-inset-bottom));
+  /* No extra env(safe-area-inset-bottom) here — .modal-backdrop's bottom
+     offset already reserves that space above #bottom-nav, so adding it
+     again would just inflate the sheet and push its handle further up. */
+  padding: 1.25rem 1rem;
   transform: translateY(100%);
   transition: transform 0.25s ease;
 }
