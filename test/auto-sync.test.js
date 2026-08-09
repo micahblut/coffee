@@ -21,30 +21,44 @@ globalThis.localStorage = /** @type {Storage} */ ({
 import { db } from "../src/db/db.js";
 import { refreshSessionState, clearSessionState, isSignedIn } from "../src/sync/session.js";
 import { startAutoSync, stopAutoSync, getSyncStatus, syncNow } from "../src/sync/auto-sync.js";
+import {
+  backupNow,
+  restoreFromCloud,
+  resetRemoteBackupFormatCache,
+  BackupLockedError,
+  BackupDecryptError,
+} from "../src/sync/backup.js";
+import { cacheBackupKey, clearCachedBackupKey } from "../src/sync/backup-key-cache.js";
+import { deriveKeyFromPrfSecret, encryptBackupPayload } from "../src/sync/backup-crypto.js";
 
 const originalFetch = globalThis.fetch;
 
 /**
  * Routes fetch calls by "METHOD /path" to a canned Response, and records
- * every call made — the one seam this app's cloud code talks to the
- * network through, so stubbing it exercises the real session/backup/api
- * modules end to end without touching a real server.
+ * every call made (plus its parsed JSON body, for POSTs) — the one seam
+ * this app's cloud code talks to the network through, so stubbing it
+ * exercises the real session/backup/api modules end to end without
+ * touching a real server.
  * @param {Record<string, () => Response>} responses
  */
 function fakeFetch(responses) {
   /** @type {string[]} */
   const calls = [];
-  const fn = /** @type {typeof fetch & { calls: string[] }} */ (
+  /** @type {unknown[]} */
+  const bodies = [];
+  const fn = /** @type {typeof fetch & { calls: string[], bodies: unknown[] }} */ (
     async (/** @type {string} */ url, /** @type {RequestInit} */ options = {}) => {
       const path = new URL(url).pathname;
       const key = `${options.method ?? "GET"} ${path}`;
       calls.push(key);
+      bodies.push(typeof options.body === "string" ? JSON.parse(options.body) : undefined);
       const respond = responses[key];
       if (!respond) throw new Error(`Unexpected fetch: ${key}`);
       return respond();
     }
   );
   fn.calls = calls;
+  fn.bodies = bodies;
   return fn;
 }
 
@@ -53,6 +67,17 @@ function fakeFetch(responses) {
  */
 function okJson(body) {
   return () => new Response(JSON.stringify(body), { status: 200 });
+}
+
+function notFoundJson() {
+  return new Response(JSON.stringify({ error: "No backup found" }), { status: 404 });
+}
+
+/**
+ * @returns {ArrayBuffer} a fake 32-byte PRF secret
+ */
+function fakePrfSecret() {
+  return crypto.getRandomValues(new Uint8Array(32)).buffer;
 }
 
 beforeEach(async () => {
@@ -66,15 +91,18 @@ beforeEach(async () => {
   ]);
 });
 
-afterEach(() => {
+afterEach(async () => {
   stopAutoSync();
   clearSessionState();
+  await clearCachedBackupKey();
+  resetRemoteBackupFormatCache();
   globalThis.fetch = originalFetch;
 });
 
 describe("syncNow", () => {
   test("pushes a backup and marks the shared status synced", async () => {
     globalThis.fetch = fakeFetch({
+      "GET /backup": notFoundJson,
       "POST /backup": okJson({ createdAt: new Date().toISOString() }),
     });
 
@@ -87,17 +115,52 @@ describe("syncNow", () => {
 
   test("marks status error and rethrows when the push fails", async () => {
     globalThis.fetch = fakeFetch({
+      "GET /backup": notFoundJson,
       "POST /backup": () => new Response(JSON.stringify({ error: "nope" }), { status: 500 }),
     });
 
     await assert.rejects(() => syncNow());
     assert.equal(getSyncStatus().status, "error");
   });
+
+  test("encrypts the push when a backup encryption key is cached and no remote backup exists yet", async () => {
+    const key = await deriveKeyFromPrfSecret(fakePrfSecret());
+    await cacheBackupKey(key);
+
+    const fetch = fakeFetch({
+      "GET /backup": notFoundJson,
+      "POST /backup": okJson({ createdAt: new Date().toISOString() }),
+    });
+    globalThis.fetch = fetch;
+
+    await syncNow();
+
+    assert.equal(getSyncStatus().status, "synced");
+    const pushedBody = /** @type {any} */ (fetch.bodies[fetch.calls.indexOf("POST /backup")]);
+    assert.equal(pushedBody.encrypted, true);
+    assert.equal(typeof pushedBody.iv, "string");
+    assert.equal(typeof pushedBody.ciphertext, "string");
+  });
+
+  test("sets status locked and never pushes when the remote backup is encrypted and no key is cached", async () => {
+    const remoteKey = await deriveKeyFromPrfSecret(fakePrfSecret());
+    const remoteEnvelope = await encryptBackupPayload(remoteKey, { exportVersion: 1, brews: [] });
+
+    const fetch = fakeFetch({
+      "GET /backup": okJson(remoteEnvelope),
+    });
+    globalThis.fetch = fetch;
+
+    await assert.rejects(() => syncNow(), BackupLockedError);
+    assert.equal(getSyncStatus().status, "locked");
+    assert.equal(fetch.calls.includes("POST /backup"), false);
+  });
 });
 
 describe("startAutoSync / stopAutoSync", () => {
   test("syncs immediately on start", async () => {
     const fetch = fakeFetch({
+      "GET /backup": notFoundJson,
       "POST /backup": okJson({ createdAt: new Date().toISOString() }),
     });
     globalThis.fetch = fetch;
@@ -115,6 +178,7 @@ describe("startAutoSync / stopAutoSync", () => {
   test("a write after stopAutoSync doesn't trigger a push", async () => {
     globalThis.fetch = fakeFetch({
       "GET /session": okJson({ userId: "user-1" }),
+      "GET /backup": notFoundJson,
       "POST /backup": okJson({ createdAt: new Date().toISOString() }),
     });
     await refreshSessionState();
@@ -140,6 +204,7 @@ describe("debounced auto-sync on local writes", () => {
   test("a write while signed in and listening triggers a backup after the debounce window", async () => {
     globalThis.fetch = fakeFetch({
       "GET /session": okJson({ userId: "user-1" }),
+      "GET /backup": notFoundJson,
       "POST /backup": okJson({ createdAt: new Date().toISOString() }),
     });
     await refreshSessionState();
@@ -163,5 +228,67 @@ describe("debounced auto-sync on local writes", () => {
 
     assert.equal(fetch.calls.filter((c) => c === "POST /backup").length, 1);
     assert.equal(getSyncStatus().status, "synced");
+  });
+});
+
+describe("backupNow", () => {
+  test("stays plaintext when no backup encryption key is cached", async () => {
+    const fetch = fakeFetch({
+      "GET /backup": notFoundJson,
+      "POST /backup": okJson({ createdAt: new Date().toISOString() }),
+    });
+    globalThis.fetch = fetch;
+
+    await backupNow();
+
+    const pushedBody = /** @type {any} */ (fetch.bodies[fetch.calls.indexOf("POST /backup")]);
+    assert.equal(pushedBody.encrypted, undefined);
+    assert.equal(pushedBody.exportVersion, 1);
+  });
+});
+
+describe("restoreFromCloud", () => {
+  test("decrypts and imports an encrypted backup with the right cached key", async () => {
+    const key = await deriveKeyFromPrfSecret(fakePrfSecret());
+    await cacheBackupKey(key);
+
+    const plain = {
+      exportVersion: 1,
+      exportedAt: new Date().toISOString(),
+      settings: [],
+      grinders: [],
+      brewers: [],
+      roasters: [{ id: "r1", name: "Restored Roaster" }],
+      bags: [],
+      brews: [],
+    };
+    const envelope = await encryptBackupPayload(key, plain);
+
+    globalThis.fetch = fakeFetch({ "GET /backup": okJson(envelope) });
+
+    await restoreFromCloud();
+
+    const roasters = await db.roasters.toArray();
+    assert.deepEqual(roasters, plain.roasters);
+  });
+
+  test("throws BackupDecryptError when no key is cached for an encrypted backup", async () => {
+    const key = await deriveKeyFromPrfSecret(fakePrfSecret());
+    const envelope = await encryptBackupPayload(key, { exportVersion: 1, roasters: [] });
+
+    globalThis.fetch = fakeFetch({ "GET /backup": okJson(envelope) });
+
+    await assert.rejects(() => restoreFromCloud(), BackupDecryptError);
+  });
+
+  test("throws BackupDecryptError when the cached key doesn't match", async () => {
+    const rightKey = await deriveKeyFromPrfSecret(fakePrfSecret());
+    const wrongKey = await deriveKeyFromPrfSecret(fakePrfSecret());
+    await cacheBackupKey(wrongKey);
+
+    const envelope = await encryptBackupPayload(rightKey, { exportVersion: 1, roasters: [] });
+    globalThis.fetch = fakeFetch({ "GET /backup": okJson(envelope) });
+
+    await assert.rejects(() => restoreFromCloud(), BackupDecryptError);
   });
 });

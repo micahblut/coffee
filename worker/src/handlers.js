@@ -149,6 +149,16 @@ export async function handleLoginComplete(request, env) {
 }
 
 /**
+ * Static, non-secret config — no D1 read, no auth. Safety comes from the
+ * credential's private key material, not from this value being hidden.
+ * @param {Request} _request
+ * @param {Env} env
+ */
+export async function handleBackupPrfSalt(_request, env) {
+  return json({ salt: env.BACKUP_PRF_SALT });
+}
+
+/**
  * @param {Request} request
  * @param {Env} env
  */

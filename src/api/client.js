@@ -13,7 +13,11 @@ async function request(path, options = {}) {
 
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(data?.error ?? `Request to ${path} failed (${response.status})`);
+    const error = /** @type {Error & { status: number }} */ (
+      new Error(data?.error ?? `Request to ${path} failed (${response.status})`)
+    );
+    error.status = response.status;
+    throw error;
   }
   return data;
 }
@@ -75,6 +79,15 @@ export function pushBackup(data) {
  */
 export function pullBackup() {
   return request("/backup");
+}
+
+/**
+ * The PRF salt is non-secret, static, app-wide config held server-side (see
+ * worker/src/env.d.ts) — a plain unauthenticated GET.
+ * @returns {Promise<{ salt: string }>}
+ */
+export function getPrfSalt() {
+  return request("/prf-salt");
 }
 
 export function logout() {

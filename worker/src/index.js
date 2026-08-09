@@ -6,6 +6,7 @@ import {
   handleSession,
   handleBackupGet,
   handleBackupPost,
+  handleBackupPrfSalt,
   handleLogout,
   handleAccountDelete,
 } from "./handlers.js";
@@ -46,6 +47,9 @@ export default {
     }
     if (url.pathname === "/backup" && request.method === "POST") {
       return handleBackupPost(request, env);
+    }
+    if (url.pathname === "/prf-salt" && request.method === "GET") {
+      return handleBackupPrfSalt(request, env);
     }
     if (url.pathname === "/logout" && request.method === "POST") {
       return handleLogout(request, env);

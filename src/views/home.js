@@ -5,12 +5,14 @@ import {
   formatBrewCardMeta,
 } from "./brews.js";
 import { brewerTypeIcon } from "./brewers.js";
-import { signInWithPasskey } from "./cloud-setup.js";
+import { signInWithPasskey, unlockCloudBackup } from "./cloud-setup.js";
 import {
+  isSignedIn,
   shouldPromptReauth,
   dismissReauthPrompt,
   subscribeToSessionState,
 } from "../sync/session.js";
+import { getSyncStatus, subscribeToSyncStatus } from "../sync/auto-sync.js";
 
 const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 const RECENT_BREWS_LIMIT = 5;
@@ -67,12 +69,21 @@ export async function renderHome(container, nav) {
     container.querySelector("#reauth-callout-root")
   );
 
-  function renderReauthCallout() {
-    if (!shouldPromptReauth()) {
+  // The reauth callout (session expired) and the locked callout (signed in,
+  // but this device has no usable backup encryption key) are mutually
+  // exclusive by construction — shouldPromptReauth() requires !isSignedIn(),
+  // locked requires isSignedIn() — so at most one ever renders.
+  function renderCloudCallout() {
+    if (shouldPromptReauth()) {
+      renderReauthCallout();
+    } else if (isSignedIn() && getSyncStatus().status === "locked") {
+      renderUnlockCallout();
+    } else {
       reauthRoot.innerHTML = "";
-      return;
     }
+  }
 
+  function renderReauthCallout() {
     reauthRoot.innerHTML = `
       <section class="reauth-callout">
         <div class="reauth-callout-header">
@@ -98,7 +109,7 @@ export async function renderHome(container, nav) {
       status.textContent = "Signing in...";
       try {
         await signInWithPasskey();
-        reauthRoot.innerHTML = "";
+        renderCloudCallout();
       } catch (error) {
         status.textContent =
           error instanceof Error ? error.message : "Sign-in failed.";
@@ -114,17 +125,62 @@ export async function renderHome(container, nav) {
     });
   }
 
-  renderReauthCallout();
+  // Passive, like the reauth callout — but not dismissible: the account is
+  // already fully opted into cloud backup, so there's no coherent "stay in
+  // local-only mode" reading of dismissing this, and it doesn't block use
+  // of the rest of the app either way.
+  function renderUnlockCallout() {
+    reauthRoot.innerHTML = `
+      <section class="reauth-callout">
+        <div class="reauth-callout-header">
+          <span class="reauth-callout-icon">${INFO_ICON}</span>
+          <h3>Cloud backup locked</h3>
+        </div>
+        <p>
+          <button type="button" id="unlock-backup-button" class="reauth-signin-link">Unlock</button>
+          this device to resume backing up your data to the cloud
+        </p>
+        <p id="unlock-backup-status"></p>
+      </section>
+    `;
+
+    const status = /** @type {HTMLElement} */ (
+      reauthRoot.querySelector("#unlock-backup-status")
+    );
+    const unlockButton = /** @type {HTMLButtonElement} */ (
+      reauthRoot.querySelector("#unlock-backup-button")
+    );
+    unlockButton.addEventListener("click", async () => {
+      status.textContent = "Unlocking...";
+      try {
+        await unlockCloudBackup();
+        renderCloudCallout();
+      } catch (error) {
+        status.textContent =
+          error instanceof Error ? error.message : "Couldn't unlock.";
+      }
+    });
+  }
+
+  renderCloudCallout();
 
   // Session state resolves asynchronously after boot (refreshSessionState
   // isn't awaited, so the app can render offline-first) — this catches the
-  // callout up once that check lands, without requiring a tab switch.
+  // callout up once that check lands, without requiring a tab switch. Sync
+  // status changes (e.g. flipping to/from "locked") need the same treatment.
   const unsubscribeSession = subscribeToSessionState(() => {
     if (!reauthRoot.isConnected) {
       unsubscribeSession();
       return;
     }
-    renderReauthCallout();
+    renderCloudCallout();
+  });
+  const unsubscribeSyncStatus = subscribeToSyncStatus(() => {
+    if (!reauthRoot.isConnected) {
+      unsubscribeSyncStatus();
+      return;
+    }
+    renderCloudCallout();
   });
 
   const calendar = /** @type {HTMLElement} */ (

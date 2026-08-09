@@ -6,7 +6,7 @@ import {
   importAllData,
 } from "../db/db.js";
 import { todayDateInputValue } from "../utils/dates.js";
-import { renderCloudSetupModal, signInWithPasskey } from "./cloud-setup.js";
+import { renderCloudSetupModal, signInWithPasskey, unlockCloudBackup } from "./cloud-setup.js";
 import { isSignedIn, clearSessionState } from "../sync/session.js";
 import {
   startAutoSync,
@@ -274,6 +274,8 @@ function cloudStatusText() {
       return "Sync pending…";
     case "error":
       return "Sync failed — will retry on next change.";
+    case "locked":
+      return "Cloud backup is locked on this device.";
     case "synced":
       return lastSyncedAt ? `Synced at ${formatSyncedAt(lastSyncedAt)}.` : "Synced.";
     default:
@@ -331,6 +333,7 @@ function renderCloudBackupCard(card, nav) {
 
   card.innerHTML = `
     <p id="cloud-status-text"></p>
+    <button type="button" id="cloud-unlock-button" class="brew-button" hidden>Unlock cloud backup</button>
     <button type="button" id="cloud-backup-now-button" class="brew-button">Back up data</button>
     <button type="button" id="cloud-restore-button" class="brew-button">Restore from cloud</button>
     <button type="button" id="cloud-sign-out-button" class="detail-delete-button">Sign out</button>
@@ -339,7 +342,15 @@ function renderCloudBackupCard(card, nav) {
   const statusText = /** @type {HTMLElement} */ (
     card.querySelector("#cloud-status-text")
   );
-  statusText.textContent = cloudStatusText();
+  const unlockButton = /** @type {HTMLButtonElement} */ (
+    card.querySelector("#cloud-unlock-button")
+  );
+
+  function updateCloudStatus() {
+    statusText.textContent = cloudStatusText();
+    unlockButton.hidden = getSyncStatus().status !== "locked";
+  }
+  updateCloudStatus();
 
   // Re-rendering this card (sign-in, sign-out, setup) replaces statusText
   // with a fresh node, which detaches this one — that's the unsubscribe
@@ -349,7 +360,18 @@ function renderCloudBackupCard(card, nav) {
       unsubscribe();
       return;
     }
-    statusText.textContent = cloudStatusText();
+    updateCloudStatus();
+  });
+
+  unlockButton.addEventListener("click", async () => {
+    statusText.textContent = "Unlocking...";
+    try {
+      await unlockCloudBackup();
+      updateCloudStatus();
+    } catch (error) {
+      statusText.textContent =
+        error instanceof Error ? error.message : "Couldn't unlock.";
+    }
   });
 
   const backupNowButton = /** @type {HTMLButtonElement} */ (

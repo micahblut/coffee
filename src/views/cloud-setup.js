@@ -1,10 +1,13 @@
 import { Client as PasswordlessClient } from "../vendor/passwordless-client.mjs";
 import { PASSWORDLESS_PUBLIC_KEY, TURNSTILE_SITE_KEY } from "../config.js";
-import { registerBegin, registerComplete, loginComplete } from "../api/client.js";
-import { refreshSessionState, markCloudLinked } from "../sync/session.js";
-import { startAutoSync } from "../sync/auto-sync.js";
-import { restoreFromCloud } from "../sync/backup.js";
+import { registerBegin, registerComplete, loginComplete, logout } from "../api/client.js";
+import { refreshSessionState, markCloudLinked, clearSessionState } from "../sync/session.js";
+import { startAutoSync, syncNow } from "../sync/auto-sync.js";
+import { restoreFromCloud, BackupDecryptError } from "../sync/backup.js";
 import { hasNoLocalData } from "../db/db.js";
+import { registerWithPrf, signinWithPrf, unlockBackupKeyLocally } from "../sync/webauthn-prf.js";
+import { deriveKeyFromPrfSecret } from "../sync/backup-crypto.js";
+import { cacheBackupKey } from "../sync/backup-key-cache.js";
 
 /**
  * Signs in on a device that already has a passkey registered for this app
@@ -15,12 +18,20 @@ import { hasNoLocalData } from "../db/db.js";
  */
 export async function signInWithPasskey() {
   const client = new PasswordlessClient({ apiKey: PASSWORDLESS_PUBLIC_KEY });
-  const { token, error } = await client.signinWithDiscoverable();
+  const { token, error, prfSecret } = await signinWithPrf(client, { discoverable: true });
   if (error) throw new Error(error.title || "Sign-in failed.");
 
   await loginComplete(/** @type {string} */ (token));
   markCloudLinked();
   await refreshSessionState();
+
+  if (prfSecret) {
+    try {
+      await cacheBackupKey(await deriveKeyFromPrfSecret(prfSecret));
+    } catch {
+      // Not fatal — the "Unlock cloud backup" flow can retry later.
+    }
+  }
 
   // This is almost always a fresh device with an existing cloud backup —
   // pull it down rather than letting auto-sync push this empty state up
@@ -28,9 +39,40 @@ export async function signInWithPasskey() {
   // keeps the normal push-based auto-sync, matching the "Back up data" /
   // "Restore from cloud" buttons' existing latest-wins model.
   if (await hasNoLocalData()) {
-    await restoreFromCloud();
+    try {
+      await restoreFromCloud();
+    } catch (err) {
+      if (err instanceof BackupDecryptError) {
+        // The session cookie is already set server-side by loginComplete()
+        // above — an unavoidable side effect of needing a valid session to
+        // even GET /backup before decryption can be attempted. Roll it back
+        // explicitly so this device never renders as signed in while unable
+        // to read its own data.
+        try {
+          await logout();
+        } catch {
+          // Cookie may already be invalid — rolling back locally regardless.
+        }
+        clearSessionState();
+        throw new Error("Couldn't unlock this backup on this device — sign-in cancelled.");
+      }
+      throw err; // non-decrypt failures: unchanged existing behavior
+    }
   }
   startAutoSync();
+}
+
+/**
+ * Re-derives and caches the PRF-based backup encryption key on a device
+ * that's already signed in but has no usable key cached (e.g. cleared
+ * storage, or a browser new to this credential) — purely local, since the
+ * session is already valid and nothing here needs to touch it.
+ */
+export async function unlockCloudBackup() {
+  const client = new PasswordlessClient({ apiKey: PASSWORDLESS_PUBLIC_KEY });
+  const prfSecret = await unlockBackupKeyLocally(client); // throws on cancel/failure
+  await cacheBackupKey(await deriveKeyFromPrfSecret(prfSecret));
+  await syncNow(); // resumes syncing immediately, flips status off "locked"
 }
 
 const TURNSTILE_SCRIPT_URL = "https://challenges.cloudflare.com/turnstile/v0/api.js";
@@ -136,12 +178,22 @@ export async function renderCloudSetupModal(container, nav, { onRegistered }) {
       );
 
       const client = new PasswordlessClient({ apiKey: PASSWORDLESS_PUBLIC_KEY });
-      const { error } = await client.register(registerToken);
+      const { error, prfSecret } = await registerWithPrf(client, registerToken);
       if (error) throw new Error(error.title || "Passkey registration failed.");
 
       await registerComplete(userId, inviteCodeId);
       markCloudLinked();
       await refreshSessionState();
+
+      if (prfSecret) {
+        try {
+          await cacheBackupKey(await deriveKeyFromPrfSecret(prfSecret));
+        } catch {
+          // Falls back to plaintext for this device's first push, same as
+          // if the authenticator hadn't supported PRF at all.
+        }
+      }
+
       startAutoSync();
       onRegistered();
     } catch (err) {

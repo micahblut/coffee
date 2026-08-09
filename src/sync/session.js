@@ -1,4 +1,6 @@
 import { checkSession } from "../api/client.js";
+import { clearCachedBackupKey } from "./backup-key-cache.js";
+import { resetRemoteBackupFormatCache } from "./backup.js";
 
 // Persisted separately from currentUserId (which resets to unknown on every
 // reload) so a device that has ever completed passkey registration/sign-in
@@ -59,6 +61,8 @@ export function clearSessionState() {
   currentUserId = null;
   localStorage.removeItem(CLOUD_LINKED_KEY);
   localStorage.removeItem(REAUTH_DISMISSED_KEY);
+  clearCachedBackupKey(); // fire-and-forget, best-effort by design
+  resetRemoteBackupFormatCache();
   notify();
 }
 
