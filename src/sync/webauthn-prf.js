@@ -141,9 +141,9 @@ export async function registerWithPrf(client, registerToken, nickname) {
       };
     }
 
-    const ext = /** @type {any} */ (credential.getClientExtensionResults());
-    let prfSecret = ext.prf?.results?.first ?? null;
-    if (prfSecret == null && ext.prf?.enabled) {
+    const { prf, ...extWithoutPrf } = /** @type {any} */ (credential.getClientExtensionResults());
+    let prfSecret = prf?.results?.first ?? null;
+    if (prfSecret == null && prf?.enabled) {
       // create()'s eager eval isn't honored by every authenticator even
       // when prf.enabled comes back true — one follow-up local get(),
       // scoped to the credential we just created, to actually obtain it.
@@ -151,6 +151,15 @@ export async function registerWithPrf(client, registerToken, nickname) {
         allowCredentials: [{ id: credential.rawId, type: "public-key" }],
       });
     }
+
+    // registerComplete() reads clientExtensionResults directly off this
+    // credential object and forwards it verbatim to passwordless.dev — our
+    // injected prf results (which include a raw ArrayBuffer) aren't
+    // something their backend expects, and including them makes their API
+    // return an empty response body instead of a real one. Passwordless.dev
+    // has no need to know about PRF at all, so strip it before handing the
+    // credential over.
+    credential.getClientExtensionResults = () => extWithoutPrf;
 
     const result = await client.registerComplete(credential, registration.session, nickname);
     if (result.error) return { error: result.error };
@@ -193,8 +202,14 @@ export async function signinWithPrf(client, signinMethod) {
       return { error: { from: "client", errorCode: "unknown", title: "Sign-in was cancelled." } };
     }
 
-    const prfSecret =
-      /** @type {any} */ (credential.getClientExtensionResults()).prf?.results?.first ?? null;
+    const { prf, ...extWithoutPrf } = /** @type {any} */ (credential.getClientExtensionResults());
+    const prfSecret = prf?.results?.first ?? null;
+
+    // Same reasoning as registerWithPrf — signinComplete() forwards
+    // clientExtensionResults verbatim to passwordless.dev, which chokes on
+    // our injected prf results (an empty response body instead of a real
+    // one). Strip it first; passwordless.dev has no need to know about it.
+    credential.getClientExtensionResults = () => extWithoutPrf;
 
     const result = await client.signinComplete(credential, signin.session);
     if (result.error) return { error: result.error };
