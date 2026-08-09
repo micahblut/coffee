@@ -548,10 +548,15 @@ export async function getBrewsForDate(date) {
  * The single most recently logged brew (by logging time, not brew date) —
  * used to surface "last used" hints on fields with no configured default,
  * so the user can jog their memory on settings they haven't changed since.
+ * Scoped to one bag when given, since grind size/dose/etc. tend to track a
+ * specific bag rather than the brewer's habits in general.
+ * @param {string} [bagId]
  * @returns {Promise<Brew | undefined>}
  */
-export async function getMostRecentlyLoggedBrew() {
-  const brews = await db.brews.toArray();
+export async function getMostRecentlyLoggedBrew(bagId) {
+  const brews = bagId
+    ? await db.brews.where("bagId").equals(bagId).toArray()
+    : await db.brews.toArray();
   return brews.reduce(
     (latest, brew) => (!latest || brew.createdAt > latest.createdAt ? brew : latest),
     /** @type {Brew | undefined} */ (undefined),
