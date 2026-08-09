@@ -123,6 +123,12 @@ export async function renderBrewSheet(container, nav, options = {}) {
   // recent-bags quick-pick only makes sense when nothing's decided yet.
   const knownBagId = existing?.bagId ?? prefillBagId;
   const recentBags = knownBagId ? [] : await getRecentBags(3);
+  // With only one bag in the cupboard there's nothing to actually choose
+  // between, so it's pre-selected too — but it still goes through the
+  // quick-pick UI (highlighted, not promoted to a title) since it's a
+  // fallback guess, not a confirmed choice the way editing/prefilling is.
+  const fallbackBagId =
+    !knownBagId && bags.length === 1 ? bags[0].id : undefined;
 
   const hasDefaultBrewer = settings?.defaultBrewerId != null;
   const hasDefaultGrinder = settings?.defaultGrinderId != null;
@@ -130,6 +136,8 @@ export async function renderBrewSheet(container, nav, options = {}) {
   const hasDefaultDose = settings?.defaultDoseGrams != null;
   const hasDefaultYield = settings?.defaultYieldGrams != null;
   const hasDefaultWaterTemp = settings?.defaultWaterTempCelsius != null;
+  const hasDefaultExtractionTime =
+    settings?.defaultExtractionTimeSeconds != null;
 
   /**
    * @param {import("../models/types.js").Bag} bag
@@ -177,29 +185,29 @@ export async function renderBrewSheet(container, nav, options = {}) {
       <input id="brew-water-temp" name="waterTempCelsius" type="number" step="any" autocomplete="off" />
     </div>
   `;
+  const extractionTimeFieldHtml = `
+    <div>
+      <label for="brew-extraction-time">Extraction time (seconds)</label>
+      <input id="brew-extraction-time" name="extractionTimeSeconds" type="number" min="0" autocomplete="off" />
+    </div>
+  `;
 
-  // Date and extraction time have no notion of a "default" — they always
-  // show. Everything else only shows here if the user hasn't already
-  // configured a default for it; otherwise it moves to the collapsed
-  // section below.
+  // Date has no notion of a "default" — it always shows. Everything else
+  // only shows here if the user hasn't already configured a default for it;
+  // otherwise it moves to the collapsed section below.
   const mainFieldsHtml = [
-    hasDefaultBrewer ? "" : brewerFieldHtml,
-    hasDefaultGrinder ? "" : grinderFieldHtml,
     `
     <div>
       <label for="brew-date">Date</label>
       <input id="brew-date" name="brewDate" type="date" max="${todayDateInputValue()}" autocomplete="off" required />
     </div>
     `,
+    hasDefaultBrewer ? "" : brewerFieldHtml,
+    hasDefaultGrinder ? "" : grinderFieldHtml,
     hasDefaultGrindSize ? "" : grindSizeFieldHtml,
     hasDefaultDose ? "" : doseFieldHtml,
     hasDefaultYield ? "" : yieldFieldHtml,
-    `
-    <div>
-      <label for="brew-extraction-time">Extraction time (seconds)</label>
-      <input id="brew-extraction-time" name="extractionTimeSeconds" type="number" min="0" autocomplete="off" />
-    </div>
-    `,
+    hasDefaultExtractionTime ? "" : extractionTimeFieldHtml,
     hasDefaultWaterTemp ? "" : waterTempFieldHtml,
   ].join("");
 
@@ -209,6 +217,7 @@ export async function renderBrewSheet(container, nav, options = {}) {
     hasDefaultGrindSize ? grindSizeFieldHtml : "",
     hasDefaultDose ? doseFieldHtml : "",
     hasDefaultYield ? yieldFieldHtml : "",
+    hasDefaultExtractionTime ? extractionTimeFieldHtml : "",
     hasDefaultWaterTemp ? waterTempFieldHtml : "",
   ].join("");
 
@@ -321,10 +330,14 @@ export async function renderBrewSheet(container, nav, options = {}) {
         lastBrew.yieldGrams != null ? `${lastBrew.yieldGrams}g` : null,
       );
     }
-    setLastUsedPlaceholder(
-      "#brew-extraction-time",
-      lastBrew.extractionTimeSeconds != null ? `${lastBrew.extractionTimeSeconds}s` : null,
-    );
+    if (!hasDefaultExtractionTime) {
+      setLastUsedPlaceholder(
+        "#brew-extraction-time",
+        lastBrew.extractionTimeSeconds != null
+          ? `${lastBrew.extractionTimeSeconds}s`
+          : null,
+      );
+    }
     if (!hasDefaultWaterTemp) {
       setLastUsedPlaceholder(
         "#brew-water-temp",
@@ -367,7 +380,8 @@ export async function renderBrewSheet(container, nav, options = {}) {
     option.textContent = `${bagLabel(bag)} (${bag.roastDate.toLocaleDateString()})`;
     bagSelect.append(option);
   }
-  if (knownBagId) bagSelect.value = knownBagId;
+  const preselectedBagId = knownBagId ?? fallbackBagId;
+  if (preselectedBagId) bagSelect.value = preselectedBagId;
 
   const bagNameEl = /** @type {HTMLElement | null} */ (
     container.querySelector("#brew-bag-current-name")
@@ -449,7 +463,10 @@ export async function renderBrewSheet(container, nav, options = {}) {
     option.textContent = grinder.name;
     grinderSelect.append(option);
   }
-  grinderSelect.value = existing?.grinderId ?? settings?.defaultGrinderId ?? "";
+  grinderSelect.value =
+    existing?.grinderId ??
+    settings?.defaultGrinderId ??
+    (grinders.length === 1 ? grinders[0].id : "");
 
   const grinderCleaningStatusEl = /** @type {HTMLElement} */ (
     container.querySelector("#grinder-cleaning-status")
@@ -474,7 +491,10 @@ export async function renderBrewSheet(container, nav, options = {}) {
     option.textContent = brewer.name;
     brewerSelect.append(option);
   }
-  brewerSelect.value = existing?.brewerId ?? settings?.defaultBrewerId ?? "";
+  brewerSelect.value =
+    existing?.brewerId ??
+    settings?.defaultBrewerId ??
+    (brewers.length === 1 ? brewers[0].id : "");
 
   const brewerCleaningStatusEl = /** @type {HTMLElement} */ (
     container.querySelector("#brewer-cleaning-status")
@@ -524,10 +544,17 @@ export async function renderBrewSheet(container, nav, options = {}) {
           ? String(settings.defaultYieldGrams)
           : "";
   }
-  const extractionInput = /** @type {HTMLInputElement} */ (
+  const extractionInput = /** @type {HTMLInputElement | null} */ (
     container.querySelector("#brew-extraction-time")
   );
-  extractionInput.value = existing ? String(existing.extractionTimeSeconds) : "";
+  if (extractionInput) {
+    extractionInput.value =
+      existing?.extractionTimeSeconds != null
+        ? String(existing.extractionTimeSeconds)
+        : settings?.defaultExtractionTimeSeconds != null
+          ? String(settings.defaultExtractionTimeSeconds)
+          : "";
+  }
   const waterTempInput = /** @type {HTMLInputElement | null} */ (
     container.querySelector("#brew-water-temp")
   );

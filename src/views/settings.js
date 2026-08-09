@@ -80,6 +80,10 @@ export async function renderSettings(container, nav) {
             <label for="settings-water-temp">Default water temp (°C)</label>
             <input id="settings-water-temp" name="defaultWaterTempCelsius" type="number" step="any" autocomplete="off" />
           </div>
+          <div>
+            <label for="settings-extraction-time">Default extraction time (seconds)</label>
+            <input id="settings-extraction-time" name="defaultExtractionTimeSeconds" type="number" min="0" autocomplete="off" />
+          </div>
           <button type="submit" class="brew-button">Save settings</button>
         </form>
         <p id="settings-status"></p>
@@ -157,6 +161,14 @@ export async function renderSettings(container, nav) {
       ? String(settings.defaultWaterTempCelsius)
       : "";
 
+  const extractionTimeInput = /** @type {HTMLInputElement} */ (
+    container.querySelector("#settings-extraction-time")
+  );
+  extractionTimeInput.value =
+    settings?.defaultExtractionTimeSeconds != null
+      ? String(settings.defaultExtractionTimeSeconds)
+      : "";
+
   const status = /** @type {HTMLElement} */ (
     container.querySelector("#settings-status")
   );
@@ -178,6 +190,9 @@ export async function renderSettings(container, nav) {
     const defaultWaterTempCelsius = String(
       data.get("defaultWaterTempCelsius") ?? "",
     ).trim();
+    const defaultExtractionTimeSeconds = String(
+      data.get("defaultExtractionTimeSeconds") ?? "",
+    ).trim();
 
     await updateSettings({
       defaultGrinderId: defaultGrinderId || undefined,
@@ -189,6 +204,9 @@ export async function renderSettings(container, nav) {
         : undefined,
       defaultWaterTempCelsius: defaultWaterTempCelsius
         ? Number(defaultWaterTempCelsius)
+        : undefined,
+      defaultExtractionTimeSeconds: defaultExtractionTimeSeconds
+        ? Number(defaultExtractionTimeSeconds)
         : undefined,
     });
 

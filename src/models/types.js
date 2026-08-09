@@ -64,6 +64,7 @@
  * @property {number} [defaultDoseGrams]
  * @property {number} [defaultYieldGrams]
  * @property {number} [defaultWaterTempCelsius]
+ * @property {number} [defaultExtractionTimeSeconds]
  */
 
 /**
