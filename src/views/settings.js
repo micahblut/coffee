@@ -7,7 +7,7 @@ import {
 } from "../db/db.js";
 import { todayDateInputValue } from "../utils/dates.js";
 import { renderCloudSetupModal, signInWithPasskey, unlockCloudBackup } from "./cloud-setup.js";
-import { isSignedIn, clearSessionState } from "../sync/session.js";
+import { isSignedIn, getUserId, clearSessionState } from "../sync/session.js";
 import {
   startAutoSync,
   stopAutoSync,
@@ -15,8 +15,11 @@ import {
   syncNow,
   subscribeToSyncStatus,
 } from "../sync/auto-sync.js";
-import { restoreFromCloud } from "../sync/backup.js";
+import { restoreFromCloud, getCachedBackupFormat } from "../sync/backup.js";
 import { logout, deleteAccount } from "../api/client.js";
+
+const COPY_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+const KEY_ICON = `<svg class="sync-key-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>`;
 
 /**
  * @param {string} filename
@@ -65,6 +68,10 @@ export async function renderSettings(container, nav) {
             </select>
           </div>
           <div>
+            <label for="settings-grind-size">Default grind size</label>
+            <input id="settings-grind-size" name="defaultGrindSize" type="number" step="any" autocomplete="off" />
+          </div>
+          <div>
             <label for="settings-dose">Default dose (g)</label>
             <input id="settings-dose" name="defaultDoseGrams" type="number" step="any" min="0" autocomplete="off" />
           </div>
@@ -75,6 +82,10 @@ export async function renderSettings(container, nav) {
           <div>
             <label for="settings-water-temp">Default water temp (°C)</label>
             <input id="settings-water-temp" name="defaultWaterTempCelsius" type="number" step="any" autocomplete="off" />
+          </div>
+          <div>
+            <label for="settings-extraction-time">Default extraction time (seconds)</label>
+            <input id="settings-extraction-time" name="defaultExtractionTimeSeconds" type="number" min="0" autocomplete="off" />
           </div>
           <button type="submit" class="brew-button">Save settings</button>
         </form>
@@ -125,6 +136,12 @@ export async function renderSettings(container, nav) {
   }
   brewerSelect.value = settings?.defaultBrewerId ?? "";
 
+  const grindSizeInput = /** @type {HTMLInputElement} */ (
+    container.querySelector("#settings-grind-size")
+  );
+  grindSizeInput.value =
+    settings?.defaultGrindSize != null ? String(settings.defaultGrindSize) : "";
+
   const doseInput = /** @type {HTMLInputElement} */ (
     container.querySelector("#settings-dose")
   );
@@ -147,6 +164,14 @@ export async function renderSettings(container, nav) {
       ? String(settings.defaultWaterTempCelsius)
       : "";
 
+  const extractionTimeInput = /** @type {HTMLInputElement} */ (
+    container.querySelector("#settings-extraction-time")
+  );
+  extractionTimeInput.value =
+    settings?.defaultExtractionTimeSeconds != null
+      ? String(settings.defaultExtractionTimeSeconds)
+      : "";
+
   const status = /** @type {HTMLElement} */ (
     container.querySelector("#settings-status")
   );
@@ -160,6 +185,7 @@ export async function renderSettings(container, nav) {
     const data = new FormData(form);
     const defaultGrinderId = String(data.get("defaultGrinderId") ?? "").trim();
     const defaultBrewerId = String(data.get("defaultBrewerId") ?? "").trim();
+    const defaultGrindSize = String(data.get("defaultGrindSize") ?? "").trim();
     const defaultDoseGrams = String(data.get("defaultDoseGrams") ?? "").trim();
     const defaultYieldGrams = String(
       data.get("defaultYieldGrams") ?? "",
@@ -167,16 +193,23 @@ export async function renderSettings(container, nav) {
     const defaultWaterTempCelsius = String(
       data.get("defaultWaterTempCelsius") ?? "",
     ).trim();
+    const defaultExtractionTimeSeconds = String(
+      data.get("defaultExtractionTimeSeconds") ?? "",
+    ).trim();
 
     await updateSettings({
       defaultGrinderId: defaultGrinderId || undefined,
       defaultBrewerId: defaultBrewerId || undefined,
+      defaultGrindSize: defaultGrindSize ? Number(defaultGrindSize) : undefined,
       defaultDoseGrams: defaultDoseGrams ? Number(defaultDoseGrams) : undefined,
       defaultYieldGrams: defaultYieldGrams
         ? Number(defaultYieldGrams)
         : undefined,
       defaultWaterTempCelsius: defaultWaterTempCelsius
         ? Number(defaultWaterTempCelsius)
+        : undefined,
+      defaultExtractionTimeSeconds: defaultExtractionTimeSeconds
+        ? Number(defaultExtractionTimeSeconds)
         : undefined,
     });
 
@@ -265,8 +298,13 @@ function formatSyncedAt(date) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function cloudStatusText() {
+/**
+ * HTML (not plain text) so an encrypted backup can show a trailing key icon
+ * next to its timestamp — the only reason this isn't just textContent.
+ */
+function cloudStatusHtml() {
   const { status, lastSyncedAt } = getSyncStatus();
+  const keyIconHtml = getCachedBackupFormat() === "encrypted" ? ` ${KEY_ICON}` : "";
   switch (status) {
     case "syncing":
       return "Syncing…";
@@ -277,10 +315,12 @@ function cloudStatusText() {
     case "locked":
       return "Cloud backup is locked on this device.";
     case "synced":
-      return lastSyncedAt ? `Synced at ${formatSyncedAt(lastSyncedAt)}.` : "Synced.";
+      return lastSyncedAt
+        ? `Synced at ${formatSyncedAt(lastSyncedAt)}${keyIconHtml}`
+        : "Synced.";
     default:
       return lastSyncedAt
-        ? `Last synced at ${formatSyncedAt(lastSyncedAt)}.`
+        ? `Last synced at ${formatSyncedAt(lastSyncedAt)}${keyIconHtml}`
         : "Not backed up yet.";
   }
 }
@@ -336,6 +376,13 @@ function renderCloudBackupCard(card, nav) {
     <button type="button" id="cloud-unlock-button" class="brew-button" hidden>Unlock cloud backup</button>
     <button type="button" id="cloud-backup-now-button" class="brew-button">Back up data</button>
     <button type="button" id="cloud-restore-button" class="brew-button">Restore from cloud</button>
+    <div class="cloud-user-id">
+      <span id="cloud-user-id-text" class="cloud-user-id-text"></span>
+      <button type="button" id="cloud-copy-uid-button" class="cloud-copy-uid-button" aria-label="Copy user ID">
+        ${COPY_ICON}
+      </button>
+    </div>
+    <p id="cloud-copy-uid-status" class="cloud-copy-uid-status"></p>
     <button type="button" id="cloud-sign-out-button" class="detail-delete-button">Sign out</button>
   `;
 
@@ -347,10 +394,32 @@ function renderCloudBackupCard(card, nav) {
   );
 
   function updateCloudStatus() {
-    statusText.textContent = cloudStatusText();
+    statusText.innerHTML = cloudStatusHtml();
     unlockButton.hidden = getSyncStatus().status !== "locked";
   }
   updateCloudStatus();
+
+  const userIdText = /** @type {HTMLElement} */ (
+    card.querySelector("#cloud-user-id-text")
+  );
+  userIdText.textContent = `User ID: ${getUserId() ?? ""}`;
+
+  const copyUidStatus = /** @type {HTMLElement} */ (
+    card.querySelector("#cloud-copy-uid-status")
+  );
+  const copyUidButton = /** @type {HTMLButtonElement} */ (
+    card.querySelector("#cloud-copy-uid-button")
+  );
+  copyUidButton.addEventListener("click", async () => {
+    const userId = getUserId();
+    if (!userId) return;
+    try {
+      await navigator.clipboard.writeText(userId);
+      copyUidStatus.textContent = "Copied to clipboard.";
+    } catch {
+      copyUidStatus.textContent = "Couldn't copy — select and copy it manually.";
+    }
+  });
 
   // Re-rendering this card (sign-in, sign-out, setup) replaces statusText
   // with a fresh node, which detaches this one — that's the unsubscribe
@@ -381,7 +450,7 @@ function renderCloudBackupCard(card, nav) {
     statusText.textContent = "Backing up...";
     try {
       await syncNow();
-      statusText.textContent = cloudStatusText();
+      statusText.innerHTML = cloudStatusHtml();
     } catch (error) {
       statusText.textContent =
         error instanceof Error ? error.message : "Backup failed.";

@@ -106,14 +106,11 @@ export async function renderBrewSheet(container, nav, options = {}) {
     return;
   }
 
-  const [bags, roasters, settings, existing, lastBrew] = await Promise.all([
+  const [bags, roasters, settings, existing] = await Promise.all([
     db.bags.orderBy("roastDate").reverse().toArray(),
     db.roasters.toArray(),
     getSettings(),
     brewId ? db.brews.get(brewId) : undefined,
-    // Only meaningful when adding a brew — editing one already shows its own
-    // stored values, so there's nothing to jog the user's memory about.
-    brewId ? undefined : getMostRecentlyLoggedBrew(),
   ]);
   const roasterNames = new Map(roasters.map((r) => [r.id, r.name]));
   const bagsById = new Map(bags.map((bag) => [bag.id, bag]));
@@ -123,12 +120,21 @@ export async function renderBrewSheet(container, nav, options = {}) {
   // recent-bags quick-pick only makes sense when nothing's decided yet.
   const knownBagId = existing?.bagId ?? prefillBagId;
   const recentBags = knownBagId ? [] : await getRecentBags(3);
+  // With only one bag in the cupboard there's nothing to actually choose
+  // between, so it's pre-selected too — but it still goes through the
+  // quick-pick UI (highlighted, not promoted to a title) since it's a
+  // fallback guess, not a confirmed choice the way editing/prefilling is.
+  const fallbackBagId =
+    !knownBagId && bags.length === 1 ? bags[0].id : undefined;
 
   const hasDefaultBrewer = settings?.defaultBrewerId != null;
   const hasDefaultGrinder = settings?.defaultGrinderId != null;
+  const hasDefaultGrindSize = settings?.defaultGrindSize != null;
   const hasDefaultDose = settings?.defaultDoseGrams != null;
   const hasDefaultYield = settings?.defaultYieldGrams != null;
   const hasDefaultWaterTemp = settings?.defaultWaterTempCelsius != null;
+  const hasDefaultExtractionTime =
+    settings?.defaultExtractionTimeSeconds != null;
 
   /**
    * @param {import("../models/types.js").Bag} bag
@@ -152,6 +158,12 @@ export async function renderBrewSheet(container, nav, options = {}) {
       <div id="grinder-cleaning-status" class="cleaning-status"></div>
     </div>
   `;
+  const grindSizeFieldHtml = `
+    <div>
+      <label for="brew-grind-size">Grind size</label>
+      <input id="brew-grind-size" name="grindSize" type="number" step="any" autocomplete="off" required />
+    </div>
+  `;
   const doseFieldHtml = `
     <div>
       <label for="brew-dose">Dose (g)</label>
@@ -170,40 +182,39 @@ export async function renderBrewSheet(container, nav, options = {}) {
       <input id="brew-water-temp" name="waterTempCelsius" type="number" step="any" autocomplete="off" />
     </div>
   `;
+  const extractionTimeFieldHtml = `
+    <div>
+      <label for="brew-extraction-time">Extraction time (seconds)</label>
+      <input id="brew-extraction-time" name="extractionTimeSeconds" type="number" min="0" autocomplete="off" />
+    </div>
+  `;
 
-  // Date, grind size, and extraction time have no notion of a "default" —
-  // they always show. Everything else only shows here if the user hasn't
-  // already configured a default for it; otherwise it moves to the
-  // collapsed section below.
+  // Date has no notion of a "default" — it always shows. Everything else
+  // only shows here if the user hasn't already configured a default for it;
+  // otherwise it moves to the collapsed section below.
   const mainFieldsHtml = [
-    hasDefaultBrewer ? "" : brewerFieldHtml,
-    hasDefaultGrinder ? "" : grinderFieldHtml,
     `
     <div>
       <label for="brew-date">Date</label>
       <input id="brew-date" name="brewDate" type="date" max="${todayDateInputValue()}" autocomplete="off" required />
     </div>
-    <div>
-      <label for="brew-grind-size">Grind size</label>
-      <input id="brew-grind-size" name="grindSize" type="number" step="any" autocomplete="off" required />
-    </div>
     `,
+    hasDefaultBrewer ? "" : brewerFieldHtml,
+    hasDefaultGrinder ? "" : grinderFieldHtml,
+    hasDefaultGrindSize ? "" : grindSizeFieldHtml,
     hasDefaultDose ? "" : doseFieldHtml,
     hasDefaultYield ? "" : yieldFieldHtml,
-    `
-    <div>
-      <label for="brew-extraction-time">Extraction time (seconds)</label>
-      <input id="brew-extraction-time" name="extractionTimeSeconds" type="number" min="0" autocomplete="off" />
-    </div>
-    `,
+    hasDefaultExtractionTime ? "" : extractionTimeFieldHtml,
     hasDefaultWaterTemp ? "" : waterTempFieldHtml,
   ].join("");
 
   const defaultsFieldsHtml = [
     hasDefaultBrewer ? brewerFieldHtml : "",
     hasDefaultGrinder ? grinderFieldHtml : "",
+    hasDefaultGrindSize ? grindSizeFieldHtml : "",
     hasDefaultDose ? doseFieldHtml : "",
     hasDefaultYield ? yieldFieldHtml : "",
+    hasDefaultExtractionTime ? extractionTimeFieldHtml : "",
     hasDefaultWaterTemp ? waterTempFieldHtml : "",
   ].join("");
 
@@ -287,45 +298,6 @@ export async function renderBrewSheet(container, nav, options = {}) {
     }
   `;
 
-  // "Last used: …" placeholders for numeric fields with no configured
-  // default — only populated when adding a brew (lastBrew is undefined when
-  // editing), so the user can jog their memory on settings they haven't
-  // changed since. Shown as the input's own placeholder (a suggestion to
-  // type, not a value that's actually set) rather than separate text.
-  /**
-   * @param {string} selector
-   * @param {string | number | null | undefined} value
-   */
-  function setLastUsedPlaceholder(selector, value) {
-    const el = /** @type {HTMLInputElement | null} */ (container.querySelector(selector));
-    if (el && value != null) el.placeholder = `Last used: ${value}`;
-  }
-  if (lastBrew) {
-    setLastUsedPlaceholder("#brew-grind-size", lastBrew.grindSize);
-    if (!hasDefaultDose) {
-      setLastUsedPlaceholder(
-        "#brew-dose",
-        lastBrew.doseGrams != null ? `${lastBrew.doseGrams}g` : null,
-      );
-    }
-    if (!hasDefaultYield) {
-      setLastUsedPlaceholder(
-        "#brew-yield",
-        lastBrew.yieldGrams != null ? `${lastBrew.yieldGrams}g` : null,
-      );
-    }
-    setLastUsedPlaceholder(
-      "#brew-extraction-time",
-      lastBrew.extractionTimeSeconds != null ? `${lastBrew.extractionTimeSeconds}s` : null,
-    );
-    if (!hasDefaultWaterTemp) {
-      setLastUsedPlaceholder(
-        "#brew-water-temp",
-        lastBrew.waterTempCelsius != null ? `${lastBrew.waterTempCelsius}°C` : null,
-      );
-    }
-  }
-
   if (existing) {
     const deleteButton = /** @type {HTMLButtonElement} */ (
       container.querySelector("#brew-delete")
@@ -360,7 +332,8 @@ export async function renderBrewSheet(container, nav, options = {}) {
     option.textContent = `${bagLabel(bag)} (${bag.roastDate.toLocaleDateString()})`;
     bagSelect.append(option);
   }
-  if (knownBagId) bagSelect.value = knownBagId;
+  const preselectedBagId = knownBagId ?? fallbackBagId;
+  if (preselectedBagId) bagSelect.value = preselectedBagId;
 
   const bagNameEl = /** @type {HTMLElement | null} */ (
     container.querySelector("#brew-bag-current-name")
@@ -385,6 +358,68 @@ export async function renderBrewSheet(container, nav, options = {}) {
     }
   }
 
+  // "Last used: …" placeholders for numeric fields with no configured
+  // default — scoped to whichever bag is currently selected, since grind
+  // size/dose/etc. tend to track a specific bag rather than the brewer's
+  // habits in general. Shown as the input's own placeholder (a suggestion
+  // to type, not a value that's actually set) rather than separate text.
+  const lastUsedSelectors = [
+    "#brew-grind-size",
+    "#brew-dose",
+    "#brew-yield",
+    "#brew-extraction-time",
+    "#brew-water-temp",
+  ];
+  /**
+   * @param {string} selector
+   * @param {string | number | null | undefined} value
+   */
+  function setLastUsedPlaceholder(selector, value) {
+    const el = /** @type {HTMLInputElement | null} */ (container.querySelector(selector));
+    if (el && value != null) el.placeholder = `Last used: ${value}`;
+  }
+  async function updateLastUsedPlaceholders() {
+    for (const selector of lastUsedSelectors) {
+      const el = /** @type {HTMLInputElement | null} */ (container.querySelector(selector));
+      if (el) el.placeholder = "";
+    }
+    // Editing a brew already shows its own stored values, so there's
+    // nothing to hint at; adding one needs a bag selected first, since the
+    // hint is scoped to that bag's own brew history.
+    if (existing || !bagSelect.value) return;
+    const lastBrew = await getMostRecentlyLoggedBrew(bagSelect.value);
+    if (!lastBrew) return;
+    if (!hasDefaultGrindSize) {
+      setLastUsedPlaceholder("#brew-grind-size", lastBrew.grindSize);
+    }
+    if (!hasDefaultDose) {
+      setLastUsedPlaceholder(
+        "#brew-dose",
+        lastBrew.doseGrams != null ? `${lastBrew.doseGrams}g` : null,
+      );
+    }
+    if (!hasDefaultYield) {
+      setLastUsedPlaceholder(
+        "#brew-yield",
+        lastBrew.yieldGrams != null ? `${lastBrew.yieldGrams}g` : null,
+      );
+    }
+    if (!hasDefaultExtractionTime) {
+      setLastUsedPlaceholder(
+        "#brew-extraction-time",
+        lastBrew.extractionTimeSeconds != null
+          ? `${lastBrew.extractionTimeSeconds}s`
+          : null,
+      );
+    }
+    if (!hasDefaultWaterTemp) {
+      setLastUsedPlaceholder(
+        "#brew-water-temp",
+        lastBrew.waterTempCelsius != null ? `${lastBrew.waterTempCelsius}°C` : null,
+      );
+    }
+  }
+
   if (!knownBagId) {
     const quickPicksContainer = /** @type {HTMLElement} */ (
       container.querySelector("#bag-quick-picks")
@@ -398,13 +433,18 @@ export async function renderBrewSheet(container, nav, options = {}) {
       button.addEventListener("click", () => {
         bagSelect.value = bag.id;
         syncBagDisplay();
+        updateLastUsedPlaceholders();
       });
       quickPicksContainer.append(button);
     }
   }
 
-  bagSelect.addEventListener("change", syncBagDisplay);
+  bagSelect.addEventListener("change", () => {
+    syncBagDisplay();
+    updateLastUsedPlaceholders();
+  });
   syncBagDisplay();
+  await updateLastUsedPlaceholders();
 
   const addBagButton = /** @type {HTMLButtonElement} */ (
     container.querySelector("#add-bag-inline")
@@ -427,6 +467,7 @@ export async function renderBrewSheet(container, nav, options = {}) {
           bagSelect.append(option);
           bagSelect.value = bag.id;
           syncBagDisplay();
+          await updateLastUsedPlaceholders();
           nav.hideModal();
         },
       }),
@@ -442,7 +483,10 @@ export async function renderBrewSheet(container, nav, options = {}) {
     option.textContent = grinder.name;
     grinderSelect.append(option);
   }
-  grinderSelect.value = existing?.grinderId ?? settings?.defaultGrinderId ?? "";
+  grinderSelect.value =
+    existing?.grinderId ??
+    settings?.defaultGrinderId ??
+    (grinders.length === 1 ? grinders[0].id : "");
 
   const grinderCleaningStatusEl = /** @type {HTMLElement} */ (
     container.querySelector("#grinder-cleaning-status")
@@ -467,7 +511,10 @@ export async function renderBrewSheet(container, nav, options = {}) {
     option.textContent = brewer.name;
     brewerSelect.append(option);
   }
-  brewerSelect.value = existing?.brewerId ?? settings?.defaultBrewerId ?? "";
+  brewerSelect.value =
+    existing?.brewerId ??
+    settings?.defaultBrewerId ??
+    (brewers.length === 1 ? brewers[0].id : "");
 
   const brewerCleaningStatusEl = /** @type {HTMLElement} */ (
     container.querySelector("#brewer-cleaning-status")
@@ -483,10 +530,17 @@ export async function renderBrewSheet(container, nav, options = {}) {
   brewerSelect.addEventListener("change", renderBrewerCleaningStatus);
   await renderBrewerCleaningStatus();
 
-  const grindSizeInput = /** @type {HTMLInputElement} */ (
+  const grindSizeInput = /** @type {HTMLInputElement | null} */ (
     container.querySelector("#brew-grind-size")
   );
-  grindSizeInput.value = existing ? String(existing.grindSize) : "";
+  if (grindSizeInput) {
+    grindSizeInput.value =
+      existing?.grindSize != null
+        ? String(existing.grindSize)
+        : settings?.defaultGrindSize != null
+          ? String(settings.defaultGrindSize)
+          : "";
+  }
 
   const doseInput = /** @type {HTMLInputElement | null} */ (
     container.querySelector("#brew-dose")
@@ -510,10 +564,17 @@ export async function renderBrewSheet(container, nav, options = {}) {
           ? String(settings.defaultYieldGrams)
           : "";
   }
-  const extractionInput = /** @type {HTMLInputElement} */ (
+  const extractionInput = /** @type {HTMLInputElement | null} */ (
     container.querySelector("#brew-extraction-time")
   );
-  extractionInput.value = existing ? String(existing.extractionTimeSeconds) : "";
+  if (extractionInput) {
+    extractionInput.value =
+      existing?.extractionTimeSeconds != null
+        ? String(existing.extractionTimeSeconds)
+        : settings?.defaultExtractionTimeSeconds != null
+          ? String(settings.defaultExtractionTimeSeconds)
+          : "";
+  }
   const waterTempInput = /** @type {HTMLInputElement | null} */ (
     container.querySelector("#brew-water-temp")
   );

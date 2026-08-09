@@ -25,6 +25,17 @@ export function resetRemoteBackupFormatCache() {
 }
 
 /**
+ * Best-effort snapshot of whether the last known backup (pushed or pulled)
+ * was encrypted — "unknown" until a sync/restore has actually run this
+ * session. Used to show a lock/key indicator in Settings without forcing an
+ * extra network round-trip just to answer that question.
+ * @returns {"unknown" | "none" | "plaintext" | "encrypted"}
+ */
+export function getCachedBackupFormat() {
+  return cachedFormat;
+}
+
+/**
  * @returns {Promise<"none" | "plaintext" | "encrypted">}
  */
 async function getRemoteBackupFormat() {
