@@ -16,6 +16,18 @@ import {
 import { renderBagForm } from "./bags.js";
 import { formatCleaningStatus } from "./grinders.js";
 
+// Sized and colored like the Equipment list's own icon pair (PENCIL_ICON /
+// MARK_CLEANED_ICON in equipment.js) — 16px glyphs in red — so this reads
+// as the same "two icons next to each other" idiom used there.
+const RESET_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>`;
+const PLAY_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>`;
+const PAUSE_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="4" width="4" height="16" rx="1"></rect><rect x="6" y="4" width="4" height="16" rx="1"></rect></svg>`;
+
+// Backstop for the extraction timer below — 9999s so a timer left running
+// by accident (walked away mid-brew) can't count up forever and blow out
+// the display's layout.
+const EXTRACTION_TIMER_MAX_MS = 9999000;
+
 /**
  * @param {import("../models/types.js").Brew} brew
  * @param {Map<string, string>} grinderNames
@@ -182,10 +194,29 @@ export async function renderBrewSheet(container, nav, options = {}) {
       <input id="brew-water-temp" name="waterTempCelsius" type="number" step="any" autocomplete="off" />
     </div>
   `;
+  // The stopwatch is add-only — timing an extraction makes sense while it's
+  // happening, not when editing a brew logged after the fact — and it
+  // replaces the plain number field outright rather than sitting below it:
+  // the field's own value doubles as the timer readout, and tapping in to
+  // type a number still works exactly like any other field. Stays with the
+  // label whether shown inline or tucked inside "Change defaults", since
+  // it's nested in the same wrapper div either way.
   const extractionTimeFieldHtml = `
     <div>
       <label for="brew-extraction-time">Extraction time (seconds)</label>
-      <input id="brew-extraction-time" name="extractionTimeSeconds" type="number" min="0" autocomplete="off" />
+      ${
+        existing
+          ? `<input id="brew-extraction-time" name="extractionTimeSeconds" type="number" min="0" autocomplete="off" />`
+          : `
+      <div class="extraction-timer" id="extraction-timer">
+        <input id="brew-extraction-time" name="extractionTimeSeconds" type="number" min="0" step="0.1" autocomplete="off" class="extraction-timer-input" />
+        <div class="extraction-timer-buttons">
+          <button type="button" id="extraction-timer-reset" class="extraction-timer-button" aria-label="Reset timer">${RESET_ICON}</button>
+          <button type="button" id="extraction-timer-toggle" class="extraction-timer-button" aria-label="Start timer">${PLAY_ICON}</button>
+        </div>
+      </div>
+      `
+      }
     </div>
   `;
 
@@ -575,6 +606,95 @@ export async function renderBrewSheet(container, nav, options = {}) {
           ? String(settings.defaultExtractionTimeSeconds)
           : "";
   }
+
+  // Timer markup (and the reset/play-pause buttons it adds around the
+  // field) only exists for a new brew — nothing to wire up when editing
+  // one, and extractionInput is a plain field in that case.
+  const extractionTimerToggle = /** @type {HTMLButtonElement | null} */ (
+    container.querySelector("#extraction-timer-toggle")
+  );
+  if (extractionTimerToggle && extractionInput) {
+    const timerResetButton = /** @type {HTMLButtonElement} */ (
+      container.querySelector("#extraction-timer-reset")
+    );
+
+    let elapsedMs = 0;
+    let runningSinceMs = /** @type {number | null} */ (null);
+    let intervalId = /** @type {ReturnType<typeof setInterval> | null} */ (
+      null
+    );
+
+    const currentElapsedMs = () =>
+      runningSinceMs != null
+        ? Math.min(
+            elapsedMs + (Date.now() - runningSinceMs),
+            EXTRACTION_TIMER_MAX_MS,
+          )
+        : elapsedMs;
+
+    // The field's own value is the timer readout — there's no separate
+    // display — so running the timer overwrites whatever's currently
+    // typed there, same as tapping in and typing a new number would.
+    const renderTimer = () => {
+      extractionInput.value = (currentElapsedMs() / 1000).toFixed(1);
+    };
+
+    /** @param {boolean} running */
+    const setRunning = (running) => {
+      extractionTimerToggle.innerHTML = running ? PAUSE_ICON : PLAY_ICON;
+      extractionTimerToggle.setAttribute(
+        "aria-label",
+        running ? "Pause timer" : "Start timer",
+      );
+    };
+
+    const pauseTimer = () => {
+      if (intervalId != null) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+      if (runningSinceMs != null) {
+        elapsedMs = currentElapsedMs();
+        runningSinceMs = null;
+      }
+      setRunning(false);
+    };
+
+    const startTimer = () => {
+      if (runningSinceMs != null || elapsedMs >= EXTRACTION_TIMER_MAX_MS) {
+        return;
+      }
+      runningSinceMs = Date.now();
+      setRunning(true);
+      intervalId = setInterval(() => {
+        // The sheet's container is never explicitly torn down when the
+        // modal closes (see nav.hideModal in main.js) — it's just detached
+        // once the closing transition finishes — so a still-running timer
+        // has to notice that itself, or it ticks forever in the background.
+        if (!container.isConnected) {
+          pauseTimer();
+          return;
+        }
+        renderTimer();
+        if (currentElapsedMs() >= EXTRACTION_TIMER_MAX_MS) pauseTimer();
+      }, 100);
+    };
+
+    extractionTimerToggle.addEventListener("click", () => {
+      if (runningSinceMs != null) {
+        pauseTimer();
+      } else {
+        startTimer();
+      }
+    });
+
+    timerResetButton.addEventListener("click", () => {
+      pauseTimer();
+      elapsedMs = 0;
+      renderTimer();
+    });
+  }
+
   const waterTempInput = /** @type {HTMLInputElement | null} */ (
     container.querySelector("#brew-water-temp")
   );

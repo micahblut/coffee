@@ -71,18 +71,19 @@ export async function renderEquipmentHome(container, nav) {
       item.className = "equipment-item";
       item.dataset.grinderId = grinder.id;
 
+      // Name and icons share a row (icons centered on the name, however
+      // many lines it wraps to); "Last cleaned" gets its own line below so
+      // the name isn't squeezed by it and can use the mat's full width.
+      const main = document.createElement("div");
+      main.className = "equipment-item-main";
+
       const name = document.createElement("span");
       name.className = "equipment-item-name";
       name.textContent = grinder.name;
-      item.append(name);
+      main.append(name);
 
       const trailing = document.createElement("span");
       trailing.className = "equipment-item-trailing";
-
-      const meta = document.createElement("span");
-      meta.className = "equipment-item-meta";
-      meta.textContent = formatLastCleaned(grinder);
-      trailing.append(meta);
 
       const markCleanedButton = document.createElement("button");
       markCleanedButton.type = "button";
@@ -97,7 +98,14 @@ export async function renderEquipmentHome(container, nav) {
       editIcon.innerHTML = PENCIL_ICON;
       trailing.append(editIcon);
 
-      item.append(trailing);
+      main.append(trailing);
+      item.append(main);
+
+      const meta = document.createElement("span");
+      meta.className = "equipment-item-meta";
+      meta.textContent = formatLastCleaned(grinder);
+      item.append(meta);
+
       grinderList.append(item);
     }
   }
@@ -119,6 +127,12 @@ export async function renderEquipmentHome(container, nav) {
       item.className = "equipment-item";
       item.dataset.brewerId = brewer.id;
 
+      // Name and icons share a row (icons centered on the name, however
+      // many lines it wraps to); "Last cleaned" gets its own line below so
+      // the name isn't squeezed by it and can use the mat's full width.
+      const main = document.createElement("div");
+      main.className = "equipment-item-main";
+
       const leading = document.createElement("span");
       leading.className = "equipment-item-leading";
 
@@ -132,15 +146,10 @@ export async function renderEquipmentHome(container, nav) {
       name.textContent = brewer.name;
       leading.append(name);
 
-      item.append(leading);
+      main.append(leading);
 
       const trailing = document.createElement("span");
       trailing.className = "equipment-item-trailing";
-
-      const meta = document.createElement("span");
-      meta.className = "equipment-item-meta";
-      meta.textContent = formatLastCleaned(brewer);
-      trailing.append(meta);
 
       const markCleanedButton = document.createElement("button");
       markCleanedButton.type = "button";
@@ -155,7 +164,14 @@ export async function renderEquipmentHome(container, nav) {
       editIcon.innerHTML = PENCIL_ICON;
       trailing.append(editIcon);
 
-      item.append(trailing);
+      main.append(trailing);
+      item.append(main);
+
+      const meta = document.createElement("span");
+      meta.className = "equipment-item-meta";
+      meta.textContent = formatLastCleaned(brewer);
+      item.append(meta);
+
       brewerList.append(item);
     }
   }
