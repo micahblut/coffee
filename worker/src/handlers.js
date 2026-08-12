@@ -172,6 +172,13 @@ export async function handleSession(request, env) {
 }
 
 /**
+ * Upload is an optimistic-concurrency write, not a blind overwrite: the
+ * client must declare which revision its snapshot is based on
+ * (`baseRevision`), and the conditional upsert below only applies the write
+ * if that still matches the stored `rev`. This is what stops Device B from
+ * silently clobbering Device A's push with a stale copy — a mismatch means
+ * something else was pushed in between, so the client needs to pull and
+ * decide how to proceed rather than have this just overwrite it.
  * @param {Request} request
  * @param {Env} env
  */
@@ -195,17 +202,43 @@ export async function handleBackupPost(request, env) {
     return json({ error: "Body must be a JSON object" }, { status: 400 });
   }
 
-  const now = isoNow();
-  await env.caffe_backups.batch([
-    env.caffe_backups.prepare("DELETE FROM backups WHERE user_id = ?").bind(userId),
-    env.caffe_backups
-      .prepare(
-        "INSERT INTO backups (id, user_id, created_at, size_bytes, payload) VALUES (?, ?, ?, ?, ?)",
-      )
-      .bind(crypto.randomUUID(), userId, now, text.length, text),
-  ]);
+  const baseRevision = parsed.baseRevision;
+  if (!Number.isInteger(baseRevision) || baseRevision < 0) {
+    return json({ error: "baseRevision must be a non-negative integer" }, { status: 400 });
+  }
+  if (parsed.backup === undefined) {
+    return json({ error: "Missing backup field" }, { status: 400 });
+  }
 
-  const response = json({ createdAt: now });
+  const payloadText = JSON.stringify(parsed.backup);
+  if (payloadText.length > MAX_BACKUP_BYTES) {
+    return json({ error: "Backup too large" }, { status: 413 });
+  }
+
+  const now = isoNow();
+  const row = await env.caffe_backups
+    .prepare(
+      `INSERT INTO backups (user_id, rev, created_at, size_bytes, payload)
+       VALUES (?, 1, ?, ?, ?)
+       ON CONFLICT(user_id) DO UPDATE SET
+         rev = backups.rev + 1,
+         created_at = excluded.created_at,
+         size_bytes = excluded.size_bytes,
+         payload = excluded.payload
+       WHERE backups.rev = ?
+       RETURNING rev`,
+    )
+    .bind(userId, now, payloadText.length, payloadText, baseRevision)
+    .first();
+
+  // A fresh account's very first push always succeeds (the plain INSERT
+  // path above never consults the WHERE guard, and there's nothing to
+  // overwrite yet). row is only ever null when a backup already existed
+  // and its rev didn't match baseRevision — the client is stale and must
+  // pull before it can safely overwrite.
+  if (!row) return json({ error: "Backup is out of date" }, { status: 409 });
+
+  const response = json({ rev: row.rev, createdAt: now });
   if (session.renewedCookie) response.headers.append("Set-Cookie", session.renewedCookie);
   return response;
 }
@@ -220,14 +253,42 @@ export async function handleBackupGet(request, env) {
   const { userId } = session;
 
   const row = await env.caffe_backups
-    .prepare("SELECT payload FROM backups WHERE user_id = ? ORDER BY created_at DESC LIMIT 1")
+    .prepare("SELECT rev, created_at, payload FROM backups WHERE user_id = ?")
     .bind(userId)
     .first();
   if (!row) return json({ error: "No backup found" }, { status: 404 });
 
-  const response = new Response(/** @type {string} */ (row.payload), {
+  // payload is already-valid JSON text (validated on POST) — splice it in
+  // as a raw fragment rather than parse-then-restringify a blob that can be
+  // up to MAX_BACKUP_BYTES.
+  const body = `{"rev":${row.rev},"createdAt":${JSON.stringify(row.created_at)},"backup":${row.payload}}`;
+  const response = new Response(body, {
     headers: { "Content-Type": "application/json", ...corsHeaders() },
   });
+  if (session.renewedCookie) response.headers.append("Set-Cookie", session.renewedCookie);
+  return response;
+}
+
+/**
+ * Cheap freshness check used by the client's boot/foreground reconciliation
+ * — just the revision number, so it doesn't have to download (and, for an
+ * encrypted backup, couldn't decrypt anyway) the full payload just to
+ * compare a counter.
+ * @param {Request} request
+ * @param {Env} env
+ */
+export async function handleBackupRevGet(request, env) {
+  const session = await resolveAndRenewSession(request, env);
+  if (!session) return json({ error: "Not signed in" }, { status: 401 });
+  const { userId } = session;
+
+  const row = await env.caffe_backups
+    .prepare("SELECT rev, created_at FROM backups WHERE user_id = ?")
+    .bind(userId)
+    .first();
+  if (!row) return json({ error: "No backup found" }, { status: 404 });
+
+  const response = json({ rev: row.rev, createdAt: row.created_at });
   if (session.renewedCookie) response.headers.append("Set-Cookie", session.renewedCookie);
   return response;
 }
