@@ -6,6 +6,7 @@ import {
   handleSession,
   handleBackupGet,
   handleBackupPost,
+  handleBackupRevGet,
   handleBackupPrfSalt,
   handleLogout,
   handleAccountDelete,
@@ -47,6 +48,9 @@ export default {
     }
     if (url.pathname === "/backup" && request.method === "POST") {
       return handleBackupPost(request, env);
+    }
+    if (url.pathname === "/backup/rev" && request.method === "GET") {
+      return handleBackupRevGet(request, env);
     }
     if (url.pathname === "/prf-salt" && request.method === "GET") {
       return handleBackupPrfSalt(request, env);

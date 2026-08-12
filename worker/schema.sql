@@ -23,11 +23,11 @@ CREATE TABLE sessions (
   expires_at TEXT NOT NULL
 );
 
-CREATE TABLE backups (               -- latest-only per user for v1
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id),
-  created_at TEXT NOT NULL,
-  size_bytes INTEGER NOT NULL,
+CREATE TABLE backups (               -- one row per user; rev is an optimistic-
+  user_id TEXT PRIMARY KEY REFERENCES users(id), -- concurrency counter so a
+  rev INTEGER NOT NULL,              -- stale push (wrong rev) is rejected
+  created_at TEXT NOT NULL,          -- instead of silently overwriting a
+  size_bytes INTEGER NOT NULL,       -- newer backup from another device
   payload TEXT NOT NULL              -- JSON.stringify(exportAllData()) verbatim
 );
 CREATE INDEX idx_backups_user_created ON backups (user_id, created_at DESC);

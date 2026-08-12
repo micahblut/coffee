@@ -4,7 +4,7 @@ import { renderSettings } from "./views/settings.js";
 import { renderEquipmentHome } from "./views/equipment.js";
 import { renderCoffeeHome } from "./views/coffee.js";
 import { refreshSessionState } from "./sync/session.js";
-import { startAutoSync } from "./sync/auto-sync.js";
+import { startAutoSync, reconcileWithCloud } from "./sync/auto-sync.js";
 
 /**
  * @typedef {(container: HTMLElement) => void | Promise<void>} ViewRender
@@ -68,9 +68,15 @@ async function main() {
   // Deliberately not awaited: the app must render immediately regardless of
   // network state (this is a local-first PWA — offline boot must stay
   // instant), so the session check and auto-sync start happen in the
-  // background whenever they resolve.
-  refreshSessionState().then((userId) => {
-    if (userId) startAutoSync();
+  // background whenever they resolve. reconcileWithCloud runs before
+  // startAutoSync so a device that's simply stale (no local edits since
+  // another device last pushed) catches up silently on cold boot — auto-
+  // sync itself only re-checks on foreground resume from here on, since a
+  // service-worker-less PWA can go a long time between actual reloads.
+  refreshSessionState().then(async (userId) => {
+    if (!userId) return;
+    await reconcileWithCloud();
+    startAutoSync();
   });
 
   app.innerHTML = `

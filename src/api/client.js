@@ -68,17 +68,28 @@ export async function checkSession() {
 }
 
 /**
- * @param {unknown} data
+ * @param {{ baseRevision: number, backup: unknown }} body
+ * @returns {Promise<{ rev: number, createdAt: string }>}
  */
-export function pushBackup(data) {
-  return request("/backup", { method: "POST", body: JSON.stringify(data) });
+export function pushBackup(body) {
+  return request("/backup", { method: "POST", body: JSON.stringify(body) });
 }
 
 /**
- * @returns {Promise<unknown>}
+ * @returns {Promise<{ rev: number, createdAt: string, backup: unknown }>}
  */
 export function pullBackup() {
   return request("/backup");
+}
+
+/**
+ * Cheap freshness check — just the revision number, not the full (possibly
+ * encrypted, possibly large) backup payload. Used by boot/foreground
+ * reconciliation to decide whether a pull is even needed.
+ * @returns {Promise<{ rev: number, createdAt: string }>}
+ */
+export function getBackupRevision() {
+  return request("/backup/rev");
 }
 
 /**

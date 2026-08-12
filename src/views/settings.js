@@ -15,7 +15,11 @@ import {
   syncNow,
   subscribeToSyncStatus,
 } from "../sync/auto-sync.js";
-import { restoreFromCloud, getCachedBackupFormat } from "../sync/backup.js";
+import {
+  restoreFromCloud,
+  getCachedBackupFormat,
+  acknowledgeRemoteRevision,
+} from "../sync/backup.js";
 import { logout, deleteAccount } from "../api/client.js";
 
 const COPY_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
@@ -314,6 +318,8 @@ function cloudStatusHtml() {
       return "Sync failed — will retry on next change.";
     case "locked":
       return "Cloud backup is locked on this device.";
+    case "conflict":
+      return "Sync paused — another device updated this backup. Back up again to keep this device's version, or restore from cloud to use theirs.";
     case "synced":
       return lastSyncedAt
         ? `Synced at ${formatSyncedAt(lastSyncedAt)}${keyIconHtml}`
@@ -449,6 +455,12 @@ function renderCloudBackupCard(card, nav) {
   backupNowButton.addEventListener("click", async () => {
     statusText.textContent = "Backing up...";
     try {
+      // A conflict means this device's last push was rejected because
+      // another device changed the cloud backup first — clicking this
+      // button again is treated as an explicit "keep this device's
+      // version" choice, so learn the cloud's current revision first and
+      // then push over it, rather than retrying with the stale one.
+      if (getSyncStatus().status === "conflict") await acknowledgeRemoteRevision();
       await syncNow();
       statusText.innerHTML = cloudStatusHtml();
     } catch (error) {
