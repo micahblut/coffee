@@ -748,11 +748,14 @@ button {
     0 8px 20px rgba(0, 0, 0, 0.08);
 }
 
+/* Stacked: the name/icons row on top, "Last cleaned" on its own line below
+   — keeps the row from squeezing the name down to make room for the meta
+   text, so the name gets the mat's full width and is less likely to wrap
+   at all (see .equipment-item-main for the row itself). */
 .equipment-item {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.3rem;
   background: var(--color-surface);
   border: 1px solid var(--color-steel);
   border-radius: var(--radius);
@@ -761,11 +764,22 @@ button {
   cursor: pointer;
 }
 
+/* The name (however many lines it wraps to) and the mark-cleaned/edit
+   icons, balanced by justify-content: space-between and vertically
+   centered on each other via align-items — so the icons stay centered on
+   the name instead of drifting off it (or off the mat) when it wraps. */
+.equipment-item-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
 /* Groups a brewer's type icon with its name so justify-content:
-   space-between on .equipment-item only has to balance two things (this
-   group, .equipment-item-trailing) instead of spreading three items evenly
-   across the row. Grinders have no type, so their list doesn't use this
-   wrapper — the bare name span is appended directly instead. */
+   space-between on .equipment-item-main only has to balance two things
+   (this group, .equipment-item-trailing) instead of spreading three items
+   evenly across the row. Grinders have no type, so their list doesn't use
+   this wrapper — the bare name span is appended directly instead. */
 .equipment-item-leading {
   display: flex;
   align-items: center;
@@ -786,12 +800,11 @@ button {
 .equipment-item-meta {
   font-size: 0.75rem;
   color: var(--color-ink-soft);
-  white-space: nowrap;
 }
 
-/* Groups the meta text and edit pencil so justify-content: space-between
-   above only has to balance two things (name, this group) instead of
-   spreading three items evenly across the row. */
+/* Groups the mark-cleaned button and edit pencil so justify-content:
+   space-between above only has to balance two things (name, this group)
+   instead of spreading three items evenly across the row. */
 .equipment-item-trailing {
   display: flex;
   align-items: center;
@@ -1412,6 +1425,94 @@ button {
 }
 
 .star-rating-star:active {
+  color: var(--color-red-dark);
+}
+
+/* The create view's extraction time field doubles as a stopwatch: it looks
+   like any other field, but the border/background live on this wrapper
+   instead of the input, with a reset/play-pause icon pair riding its right
+   edge. The edit view keeps the plain field this replaces — see
+   extractionTimeFieldHtml in brews.js — so this only ever wraps the add
+   view's version. */
+.extraction-timer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  /* Pinned to the same height as every other field (see input[type="date"]
+     above) rather than left to shrink-wrap the input — a native number
+     spinner can make the input's own intrinsic height unpredictable across
+     browsers. */
+  min-height: calc(1.3em + 2 * 0.6rem + 2px);
+  background: var(--color-surface);
+  border: 1px solid var(--color-steel);
+  border-radius: var(--radius);
+}
+
+.extraction-timer:focus-within {
+  outline: 2px solid var(--color-red);
+  outline-offset: 1px;
+}
+
+/* Overrides the shared input baseline's own border/background/width
+   (further up this file) via #extraction-timer's higher specificity — the
+   wrapper above supplies the field's visible border instead. Also drops
+   this field's native number spinner, and reserves room on the right so
+   typed digits don't run under the button group, which floats over this
+   field rather than sitting beside it in flow (see .extraction-timer-
+   buttons below). */
+#extraction-timer .extraction-timer-input {
+  width: auto;
+  flex: 1;
+  min-width: 0;
+  padding-right: 4.75rem;
+  border: none;
+  background: none;
+  -moz-appearance: textfield;
+}
+
+#extraction-timer .extraction-timer-input::-webkit-outer-spin-button,
+#extraction-timer .extraction-timer-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+#extraction-timer .extraction-timer-input:focus {
+  outline: none;
+}
+
+/* Absolutely positioned against the field's own vertical center, rather
+   than relying on flex cross-axis alignment next to the input — a native
+   number input's own rendering (line metrics, historically its now-removed
+   spinner) made that alignment unreliable across browsers. Centering
+   against the field itself instead of the input sidesteps that entirely.
+   Same "two icons next to each other" idiom as .equipment-item-trailing —
+   a deliberate small gap between them, not touching. */
+.extraction-timer-buttons {
+  position: absolute;
+  top: 50%;
+  right: 0.85rem;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Sized like .equipment-item-clean-button, the app's other small icon
+   button next to plain text/inputs. */
+.extraction-timer-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  min-height: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--color-red);
+}
+
+.extraction-timer-button:active {
   color: var(--color-red-dark);
 }
 
