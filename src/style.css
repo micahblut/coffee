@@ -258,6 +258,7 @@ textarea {
      computed font-size is under 16px, then leaves the viewport zoomed in
      after blur — must stay at 1rem (16px at the default root size). */
   font-size: 1rem;
+  line-height: 1.3;
   color: var(--color-ink);
 }
 
@@ -278,12 +279,20 @@ textarea:focus {
    every input's font-size, the segments no longer fit at the width they
    used to. Dropping the native appearance renders the control as a plain
    text-like box that actually respects width/max-width — tapping it still
-   opens the native date picker. */
+   opens the native date picker.
+
+   That same appearance reset has a second side effect: WebKit collapses an
+   *empty* date input's internal day/month/year fields to a shorter box than
+   one holding a value, so the control's height jumps once a date is picked.
+   min-height, derived from the shared padding/line-height above, pins the
+   box to the height it'd have with a value so empty and filled states match
+   and the tap target doesn't shrink. */
 input[type="date"] {
   -webkit-appearance: none;
   appearance: none;
   min-width: 0;
   max-width: 100%;
+  min-height: calc(1.3em + 2 * 0.6rem + 2px);
 }
 
 /* A short intro line under a page's h1, explaining what the page is for. */
