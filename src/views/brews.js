@@ -220,16 +220,17 @@ export async function renderBrewSheet(container, nav, options = {}) {
     </div>
   `;
 
-  // Date has no notion of a "default" — it always shows. Everything else
-  // only shows here if the user hasn't already configured a default for it;
-  // otherwise it moves to the collapsed section below.
-  const mainFieldsHtml = [
-    `
+  // The date is almost always "today", so it lives in the collapsed
+  // defaults section alongside everything else the user doesn't need to
+  // touch on every brew — it's just unconditional there, since (unlike the
+  // other fields) it has no notion of a configured default to gate on.
+  const dateFieldHtml = `
     <div>
       <label for="brew-date">Date</label>
       <input id="brew-date" name="brewDate" type="date" max="${todayDateInputValue()}" autocomplete="off" required />
     </div>
-    `,
+  `;
+  const mainFieldsHtml = [
     hasDefaultBrewer ? "" : brewerFieldHtml,
     hasDefaultGrinder ? "" : grinderFieldHtml,
     hasDefaultGrindSize ? "" : grindSizeFieldHtml,
@@ -240,6 +241,7 @@ export async function renderBrewSheet(container, nav, options = {}) {
   ].join("");
 
   const defaultsFieldsHtml = [
+    dateFieldHtml,
     hasDefaultBrewer ? brewerFieldHtml : "",
     hasDefaultGrinder ? grinderFieldHtml : "",
     hasDefaultGrindSize ? grindSizeFieldHtml : "",
@@ -290,16 +292,10 @@ export async function renderBrewSheet(container, nav, options = {}) {
         <h2>Brew details</h2>
         <div class="settings-card">
           ${mainFieldsHtml}
-          ${
-            defaultsFieldsHtml
-              ? `
           <details class="form-details" ${existing ? "open" : ""}>
             <summary>Change defaults</summary>
             ${defaultsFieldsHtml}
           </details>
-          `
-              : ""
-          }
         </div>
       </section>
       <section class="settings-section">
